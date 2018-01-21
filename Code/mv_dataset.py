@@ -54,7 +54,6 @@ class JpegDecoder(object):
         self._jpeg_dec = tf.image.decode_jpeg(self._jpeg_img, channels=3)
 
     def __call__(self, jpeg_image_file):
-        print (jpeg_image_file)
         try:
             with tf.gfile.FastGFile(jpeg_image_file, mode='rb') as fp:
                 jpeg_image = fp.read()
@@ -93,8 +92,8 @@ class TFDatasetWriter(object):
     """
     def __init__(self, num_rec_files=5):
         # TFRecord Size 
-        rec_size = _TRAIN_SET_SIZE // num_train_rec
-        if (rec_size * num_train_rec) != _TRAIN_SET_SIZE: 
+        rec_size = _TRAIN_SET_SIZE // num_rec_files
+        if (rec_size * num_rec_files) != _TRAIN_SET_SIZE: 
             raise ValueError('num_train_rec not suitable')
         self.num_rec = num_rec_files
         self.jpg_dec = JpegDecoder()
@@ -150,7 +149,6 @@ class TFDatasetWriter(object):
         threads.append(th)
         coord.join(threads)
         self.jpg_dec.close()
-
         print ('ELAPSED TIME:  ', datetime.now() - t_start)
             
 

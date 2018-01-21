@@ -52,7 +52,6 @@ __pycache__
 .DS_Store
 
 log
-model
 bin
 dataset/training/*
 bin/*
