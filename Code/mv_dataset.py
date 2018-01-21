@@ -184,7 +184,7 @@ class TFDatasetReader(object):
     def read(self, batch_size, for_training=True, data_format='NCHW', data_aug=False):
         """ """
         eval_dataset  = tf.data.TFRecordDataset(self.eval_file)
-        eval_dataset  = eval_dataset.map(lambda tf_rec: self._parse_eval_rec(tf_rec), 5)
+        eval_dataset  = eval_dataset.map(lambda tf_rec: self._parse_eval_rec(tf_rec))
         eval_dataset  = eval_dataset.prefetch(batch_size)
         eval_dataset  = eval_dataset.batch(batch_size)
         out_types = eval_dataset.output_types
@@ -193,9 +193,10 @@ class TFDatasetReader(object):
         self.eval_init_op = data_iter.make_initializer(eval_dataset)
 
         if for_training is True:
-            train_dataset = tf.data.Dataset.from_tensor_slices(self.train_files)
-            train_dataset = train_dataset.flat_map(tf.data.TFRecordDataset)
-            train_dataset = train_dataset.shuffle(len(self.train_files))
+            # train_dataset = tf.data.Dataset.from_tensor_slices(self.train_files)
+            # train_dataset = train_dataset.flat_map(tf.data.TFRecordDataset)
+            # train_dataset = train_dataset.shuffle(len(self.train_files))
+            train_dataset = tf.data.TFRecordDataset(self.train_files)
             train_dataset = train_dataset.map(lambda tf_rec: self._parse_train_rec(tf_rec), 10)
             train_dataset = train_dataset.prefetch(batch_size)
             train_dataset = train_dataset.shuffle(self.shuffle_sz)
