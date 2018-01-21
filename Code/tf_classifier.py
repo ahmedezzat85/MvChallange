@@ -170,7 +170,7 @@ class TFClassifier(object):
 
         utils.create_dir(os.path.join(self.log_dir, 'chkpt'))        
         self.chkpt_prfx = os.path.join(self.log_dir, 'chkpt', 'CHKPT')
-        self.logger = utils.create_logger(log_file=os.path.join(self.log_dir, 'Train.log'))
+        self.logger = utils.create_logger(self.model_name, os.path.join(self.log_dir, 'Train.log'))
         self.logger.info("Training Started at  : " + t_start.strftime("%Y-%m-%d %H:%M:%S"))
 
         with tf.Graph().as_default():
