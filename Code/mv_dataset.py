@@ -143,7 +143,7 @@ class TFDatasetWriter(object):
             th = threading.Thread(target=create_tf_record, args=args)
             th.start()
             threads.append(th)
-        args = ('val.tfrecords', val_set)
+        args = ('eval.tfrecords', self.eval_set)
         th = threading.Thread(target=create_tf_record, args=args)
         th.start()
         threads.append(th)
@@ -166,7 +166,7 @@ class TFDatasetReader(object):
         self.num_classes = 200
         train_file_name  = os.path.join(_DATASET_DIR, 'train_{:02d}.tfrecords')
         self.train_files = [train_file_name.format(i+1) for i in range(5)]
-        self.val_file    = os.path.join(_DATASET_DIR, 'val.tfrecords')
+        self.eval_file   = os.path.join(_DATASET_DIR, 'eval.tfrecords')
         self.shuffle_sz  = shuffle_buff_sz
 
     def _parse_eval_rec(self, tf_record):
@@ -189,7 +189,7 @@ class TFDatasetReader(object):
 
     def read(self, batch_size, for_training=True, data_format='NCHW', data_aug=False):
         """ """
-        eval_dataset  = tf.data.TFRecordDataset(self.val_file)
+        eval_dataset  = tf.data.TFRecordDataset(self.eval_file)
         eval_dataset  = eval_dataset.map(lambda tf_rec: self._parse_eval_rec(tf_rec), 5)
         eval_dataset  = eval_dataset.prefetch(batch_size)
         eval_dataset  = eval_dataset.batch(batch_size)
