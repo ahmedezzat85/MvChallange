@@ -29,9 +29,7 @@ _DATASET_DIR = os.path.join(os.path.dirname(__file__), '..', 'dataset')
 
 _IMAGE_TFREC_STRUCTURE = {
         'image' : tf.FixedLenFeature([], tf.string),
-        'label' : tf.FixedLenFeature([], tf.int64),
-        'height': tf.FixedLenFeature([], tf.int64),
-        'width' : tf.FixedLenFeature([], tf.int64)
+        'label' : tf.FixedLenFeature([], tf.int64)
     }
 
 
@@ -69,17 +67,15 @@ class JpegDecoder(object):
 
 class TFRecFile(object):
     """ """
-    def __init__(self, tf_rec_out_file, jpeg_decoder):
+    def __init__(self, tf_rec_out_file):
         self.writer   = tf.python_io.TFRecordWriter(tf_rec_out_file)
-        self.jpeg_dec = jpeg_decoder
 
     def add_image(self, image_file, label):
-        image, h, w, c = self.jpeg_dec(image_file)
+        with tf.gfile.FastGFile(image_file, mode='rb') as fp:
+            image = fp.read()
         features = tf.train.Features(feature={
             'image' : _bytes_feature(image),
-            'label' : _int64_feature(label),    
-            'height': _int64_feature(h),
-            'width' : _int64_feature(w)
+            'label' : _int64_feature(label)
         })
         tf_rec_proto = tf.train.Example(features=features)
         self.writer.write(tf_rec_proto.SerializeToString())
@@ -96,7 +92,6 @@ class TFDatasetWriter(object):
         if (rec_size * num_rec_files) != _TRAIN_SET_SIZE: 
             raise ValueError('num_train_rec not suitable')
         self.num_rec = num_rec_files
-        self.jpg_dec = JpegDecoder()
 
     def _split_train_eval(self):
         """ """
@@ -125,7 +120,7 @@ class TFDatasetWriter(object):
 
     def write(self):
         def create_tf_record(rec_file, image_list):
-            rec_file = TFRecFile(os.path.join(_DATASET_DIR, rec_file), self.jpg_dec)
+            rec_file = TFRecFile(os.path.join(_DATASET_DIR, rec_file))
             for t in image_list:
                 image, label = t
                 rec_file.add_image(os.path.join(_DATASET_DIR, 'training', image), label)
@@ -148,7 +143,6 @@ class TFDatasetWriter(object):
         th.start()
         threads.append(th)
         coord.join(threads)
-        self.jpg_dec.close()
         print ('ELAPSED TIME:  ', datetime.now() - t_start)
             
 
