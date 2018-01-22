@@ -94,6 +94,7 @@ class TFNet(object):
                                     data_format=self.data_format,
                                     trainable=self.trainable,
                                     activation_fn=None,
+                                    weights_initializer=self.kernel_init,
                                     scope=name+'_dw')
         if add_bn == True:
             bn_name = None if name is None else name+'dw_Bn'
