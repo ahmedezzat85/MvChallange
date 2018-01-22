@@ -13,6 +13,7 @@ import tensorflow as tf
 from pandas import read_csv
 
 import utils
+from vgg_preprocessing import preprocess_image
 
 ##=======##=======##=======##
 # CONSTANTS
@@ -167,6 +168,15 @@ class TFDatasetReader(object):
         """ """
         feature = tf.parse_single_example(tf_record, features=_IMAGE_TFREC_STRUCTURE)
         image = tf.image.decode_jpeg(feature['image'], channels=3)
+        image = tf.image.convert_image_dtype(image, dtype=tf.float32)
+        image = preprocess_image(image, self.shape[0], self.shape[1])
+        label = tf.cast(feature['label'], tf.int64)
+        return image, label
+
+    def _parse_train_rec_1(self, tf_record):
+        """ """
+        feature = tf.parse_single_example(tf_record, features=_IMAGE_TFREC_STRUCTURE)
+        image = tf.image.decode_jpeg(feature['image'], channels=3)
         image = tf.image.resize_image_with_crop_or_pad(image, self.shape[0], self.shape[1])
         image = tf.cast(image, self.dtype)
         label = tf.cast(feature['label'], tf.int64)
@@ -176,7 +186,9 @@ class TFDatasetReader(object):
         """ """
         feature = tf.parse_single_example(tf_record, features=_IMAGE_TFREC_STRUCTURE)
         image = tf.image.decode_jpeg(feature['image'], channels=3)
-        image = tf.image.resize_image_with_crop_or_pad(image, self.shape[0], self.shape[1])
+        image = tf.image.convert_image_dtype(image, dtype=tf.float32)
+        image = preprocess_image(image, self.shape[0], self.shape[1], is_training=True, 
+                                    resize_side_max=224, resize_side_min=224)
         image = tf.cast(image, self.dtype)
         label = tf.cast(feature['label'], tf.int64)
         return image, label
@@ -193,10 +205,10 @@ class TFDatasetReader(object):
         self.eval_init_op = data_iter.make_initializer(eval_dataset)
 
         if for_training is True:
-            # train_dataset = tf.data.Dataset.from_tensor_slices(self.train_files)
-            # train_dataset = train_dataset.flat_map(tf.data.TFRecordDataset)
-            # train_dataset = train_dataset.shuffle(len(self.train_files))
-            train_dataset = tf.data.TFRecordDataset(self.train_files)
+            train_dataset = tf.data.Dataset.from_tensor_slices(self.train_files)
+            train_dataset = train_dataset.flat_map(tf.data.TFRecordDataset)
+            train_dataset = train_dataset.shuffle(len(self.train_files))
+            # train_dataset = tf.data.TFRecordDataset(self.train_files)
             train_dataset = train_dataset.map(lambda tf_rec: self._parse_train_rec(tf_rec), 10)
             train_dataset = train_dataset.prefetch(batch_size)
             train_dataset = train_dataset.shuffle(self.shuffle_sz)
@@ -215,6 +227,7 @@ def main():
                                                                     dataset into tfrecord files')
     parser.add_argument('-r', '--reader', action='store_true', help='Dataset Reader Mode. Parse tfreord files')
     parser.add_argument('-n', '--num-files', type=int, default=5, help='Number of TFRECORD files for training dataset')
+    parser.add_argument('-j', '--jpg', action='store_true', help='JPEG Test.')
 
     args = parser.parse_args()
 
@@ -238,6 +251,18 @@ def main():
             t_start = datetime.now()
             
             print (images.shape)
+    elif args.jpg is True:
+        images = [21158, 35728, 37021, 76090, 79764]
+        dec = JpegDecoder()
+        for i in images:
+            url = os.path.join(_DATASET_DIR, 'corrupted_images', 'training_'+str(i)+'.jpg')
+            _, h, w, c = dec(url)
+            print ('URL: training_', i, '(', h, w, ')')
+        print ('---------------------------')
+        for i in images:
+            url = os.path.join(_DATASET_DIR, 'train_patch', 'training_'+str(i)+'.jpg')
+            _, h, w, c = dec(url)
+            print ('URL: training_', i, '(', h, w, ')')
     else:
         parser.print_help()
 

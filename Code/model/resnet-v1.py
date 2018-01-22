@@ -14,17 +14,17 @@ class Resnet(TFNet):
         """ """
         data = self.net_out
         shortcut  = data
+        bn_out    = self.batch_norm(data, act_fn, name=name+'_bn')
         if conv_1x1:
-            shortcut = self.convolution(data, filters, (1,1), stride, pad='same', act_fn='',
-                                        add_bn=True, name=name+'_1x1_conv')
+            shortcut = self.convolution(bn_out, filters, (1,1), stride, pad='same', act_fn='',
+                                        no_bias=True, name=name+'_1x1_conv')
         
-        net_out = self.convolution(data, filters, kernel, stride, act_fn=act_fn, add_bn=True,
+        net_out = self.convolution(bn_out, filters, kernel, stride, act_fn=act_fn, add_bn=True,
                                     name=name+'_conv1')
-        net_out = self.convolution(net_out, filters, kernel, (1,1), act_fn='', add_bn=True, 
+        net_out = self.convolution(net_out, filters, kernel, (1,1), act_fn='', no_bias=True, 
                                     name=name+'_conv2')
 
-        net_out = net_out + shortcut
-        self.net_out = tf.nn.relu(net_out, name=name+'_Relu')
+        self.net_out = net_out + shortcut
 
     def _resnet_unit(self, num_blocks, filters, kernel, stride=1, act_fn='relu', name=None):
         """ """
@@ -35,13 +35,13 @@ class Resnet(TFNet):
 
     def __call__(self, num_stages=3, num_blocks=3, filters=[16, 32, 64], strides=[1,2,2]):
         """ """
-        self.net_out = self.convolution(self.net_out, filters[0], (3,3), (1,1), act_fn='relu', 
-                                        add_bn=True, name='Conv0')
+        self.net_out = self.convolution(self.net_out, filters[0], (3,3), (1,1), act_fn='', 
+                                        no_bias=True, add_bn=False, name='Conv0')
 
         for k in range(num_stages):
             self._resnet_unit(num_blocks, filters[k], (3,3), strides[k], name='stage'+str(k))
 
-        net_out = self.global_pool(self.net_out, name='global_pool')
+        net_out = self.pooling(self.net_out, 'avg', (8,8), name="global_pool")
         net_out = self.dropout(net_out, 0.5)
         net_out = self.flatten(net_out)
         net_out = self.Softmax(net_out, self.num_classes)

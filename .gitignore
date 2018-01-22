@@ -51,6 +51,8 @@ __pycache__
 # OSX dir files
 .DS_Store
 
+corrupted_images
+train_patch
 log
 logs
 bin
@@ -67,3 +69,4 @@ log/*
 *.graph
 *.weights
 *.tar
+*.zip
