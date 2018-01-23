@@ -33,13 +33,16 @@ class Resnet(TFNet):
         for i in range(1, num_blocks):
             self._resnet_block(filters, kernel, (1,1), act_fn, name=name+'_block'+str(i))
 
-    def __call__(self, num_stages=3, num_blocks=3, filters=[16, 32, 64], strides=[1,2,2]):
+    def __call__(self, blocks=[], filters=[16, 32, 64], strides=[1,2,2]):
         """ """
-        self.net_out = self.convolution(self.net_out, filters[0], (3,3), (1,1), act_fn='relu', 
-                                        add_bn=True, name='Conv0')
+        self.net_out = self.convolution(self.net_out, 64, (7,7), (2,2), act_fn='relu', add_bn=True, name='Conv0')
+        self.net_out = self.pooling(self.net_out, 'max', (2,2), name='Pool1')
 
-        for k in range(num_stages):
-            self._resnet_unit(num_blocks, filters[k], (3,3), strides[k], name='stage'+str(k))
+        blocks  = [ 3,   4,   6,   3]
+        filters = [64, 128, 256, 512]
+        strides = [ 1,   2,   2,   2]
+        for k in range(len(blocks)):
+            self._resnet_unit(blocks[k], filters[k], (3,3), strides[k], name='stage'+str(k))
 
         net_out = self.global_pool(self.net_out, name='global_pool')
         net_out = self.dropout(net_out, 0.5)
@@ -50,5 +53,5 @@ class Resnet(TFNet):
 def snpx_net_create(num_classes, input_data, data_format="NHWC", is_training=True):
     """ """
     net = Resnet(input_data, data_format, num_classes, is_training)
-    net_out = net(num_stages=3, num_blocks=3, filters=[16, 32, 64], strides=[1,2,2])
+    net_out = net()
     return net_out

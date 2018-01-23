@@ -3,12 +3,12 @@
 set PYTHON=python3
 set IMG_SZ=128
 set NUM_EPOCH=1
-set BATCH_SZ=32
+set BATCH_SZ=16
 set FP16=0
 set FMT=NCHW
 set model=resnet
-set MODEL_LOG_DIR=test
-set LR=0.05
+set MODEL_LOG_DIR=resnet-34
+set LR=0.001
 set L2_REG=0.0
 set DATA_AUG=1
 set OPT=adam
