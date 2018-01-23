@@ -238,11 +238,17 @@ def main():
         with tf.Session() as sess:
             t_start = datetime.now()
             sess.run(reader.train_init_op)
-            images, labels = sess.run([reader.images, reader.labels])
+            i = 0
+            while True:
+                try:
+                    images, labels = sess.run([reader.images, reader.labels])
+                    print ('batch ', i)
+                    i += 1
+                except tf.errors.OutOfRangeError:
+                    break
             print ('Time for training set: ', datetime.now() - t_start)
             t_start = datetime.now()
             
-            print (images.shape)
     elif args.jpg is True:
         images = [21158, 35728, 37021, 76090, 79764]
         dec = JpegDecoder()
