@@ -33,7 +33,6 @@ _IMAGE_TFREC_STRUCTURE = {
         'label' : tf.FixedLenFeature([], tf.int64)
     }
 
-
 ##=======##=======##=======##=======##=======##=======##=======##
 # Dataset Writer Functions (Save dataset to TFRECORD files)
 ##=======##=======##=======##=======##=======##=======##=======##
@@ -159,6 +158,8 @@ class TFDatasetReader(object):
         self.dtype       = dtype
         self.shape       = (image_size, image_size, 3)
         self.num_classes = 200
+        self.scale_min   = image_size + 32
+        self.scale_max   = self.scale_min
         train_file_name  = os.path.join(_DATASET_DIR, 'train_{:02d}.tfrecords')
         self.train_files = [train_file_name.format(i+1) for i in range(5)]
         self.eval_file   = os.path.join(_DATASET_DIR, 'eval.tfrecords')
@@ -169,16 +170,7 @@ class TFDatasetReader(object):
         feature = tf.parse_single_example(tf_record, features=_IMAGE_TFREC_STRUCTURE)
         image = tf.image.decode_jpeg(feature['image'], channels=3)
         image = tf.image.convert_image_dtype(image, dtype=tf.float32)
-        image = preprocess_image(image, self.shape[0], self.shape[1])
-        label = tf.cast(feature['label'], tf.int64)
-        return image, label
-
-    def _parse_train_rec_1(self, tf_record):
-        """ """
-        feature = tf.parse_single_example(tf_record, features=_IMAGE_TFREC_STRUCTURE)
-        image = tf.image.decode_jpeg(feature['image'], channels=3)
-        image = tf.image.resize_image_with_crop_or_pad(image, self.shape[0], self.shape[1])
-        image = tf.cast(image, self.dtype)
+        image = preprocess_image(image, self.shape[0], self.shape[1], resize_side_min=self.scale_min)
         label = tf.cast(feature['label'], tf.int64)
         return image, label
 
@@ -188,7 +180,7 @@ class TFDatasetReader(object):
         image = tf.image.decode_jpeg(feature['image'], channels=3)
         image = tf.image.convert_image_dtype(image, dtype=tf.float32)
         image = preprocess_image(image, self.shape[0], self.shape[1], is_training=True, 
-                                    resize_side_max=224, resize_side_min=224)
+                                    resize_side_max=self.scale_max, resize_side_min=self.scale_min)
         image = tf.cast(image, self.dtype)
         label = tf.cast(feature['label'], tf.int64)
         return image, label
