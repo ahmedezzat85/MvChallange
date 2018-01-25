@@ -5,7 +5,7 @@ from arg_parser import parse_cmd_line_options
 
 import utils
 from mv_dataset import TFDatasetReader
-from tf_classifier import TFClassifier
+from tf_dnn import TFClassifier
 
 _CUR_DIR       = os.path.dirname(__file__)
 _LOGS_ROOT_DIR = os.path.join(_CUR_DIR, '..', 'logs')

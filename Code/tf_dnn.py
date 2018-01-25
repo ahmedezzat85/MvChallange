@@ -55,6 +55,11 @@ class TFClassifier(object):
         logits, predictions = self.model_fn(num_classes, batch, self.data_format, is_training=training)
         return logits, predictions
 
+    def loss_fn(self, logits):
+        cross_entropy = tf.losses.softmax_cross_entropy(self.dataset.labels, logits)
+        tf.summary.scalar("Cross Entropy", cross_entropy)
+        return cross_entropy
+
     def _create_train_op(self, logits):
         """ """
         self.global_step = tf.train.get_or_create_global_step()
@@ -69,13 +74,11 @@ class TFClassifier(object):
             opt = tf.train.RMSPropOptimizer(self.hp.lr)
  
         # Compute the loss and the train_op
-        cross_entropy = tf.losses.softmax_cross_entropy(self.dataset.labels, logits) # needs wrapping
-        self.loss = cross_entropy
+        self.loss = self.loss_fn(logits)
         if self.hp.wd > 0:
             l2_loss = self.hp.wd * tf.add_n([tf.nn.l2_loss(v) for v in tf.trainable_variables() 
                                                 if 'batch_normalization' not in v.name])
             self.loss = self.loss + l2_loss
-        tf.summary.scalar("Cross Entropy", cross_entropy)
 
         update_ops  = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
