@@ -28,9 +28,8 @@ class MobileResNet(TFNet):
 
     def __call__(self, alpha=1.0):
         """ """
-        net_out = self.net_out
-        net_out = self.convolution(net_out, 32, (3,3), stride=(2,2), act_fn='relu', add_bn=True, name='Conv0')
-        net_out = self.conv_dw(net_out, 64  , (3,3), stride=(1,1), act_fn='relu', add_bn=True, name='Conv1')
+        self.net_out = self.convolution(self.net_out, 32, (3,3), stride=(2,2), act_fn='relu', add_bn=True, name='Conv0')
+        self.net_out = self.conv_dw(self.net_out, 64  , (3,3), stride=(1,1), act_fn='relu', add_bn=True, name='Conv1')
         self._resnet_block(128, (3,3), stride=(2,2), act_fn='relu', conv_1x1=1, name='Block1')
         self._resnet_block(256, (3,3), stride=(2,2), act_fn='relu', conv_1x1=1, name='Block2')
         self._resnet_block(512, (3,3), stride=(2,2), act_fn='relu', conv_1x1=1, name='Block3')
