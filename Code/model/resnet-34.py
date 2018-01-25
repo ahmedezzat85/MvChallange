@@ -38,7 +38,7 @@ class Resnet(TFNet):
         self.net_out = self.convolution(self.net_out, 64, (7,7), (2,2), act_fn='relu', add_bn=True, name='Conv0')
         self.net_out = self.pooling(self.net_out, 'max', (2,2), name='Pool1')
 
-        blocks  = [ 2,   2,   2,   2]
+        blocks  = [ 3,   4,   6,   3]
         filters = [64, 128, 256, 512]
         strides = [ 1,   2,   2,   2]
         for k in range(len(blocks)):

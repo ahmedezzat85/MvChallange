@@ -26,7 +26,7 @@ _VAL_SET_SIZE    = 5000
 _TRAIN_PER_CLASS = _IMG_PER_CLASS * (_TRAIN_SET_SIZE / _DATASET_SIZE)
 _VAL_PER_CLASS   = _IMG_PER_CLASS * (_VAL_SET_SIZE / _DATASET_SIZE)
 
-_DATASET_DIR = os.path.join(os.path.dirname(__file__), '..', 'dataset')
+DATASET_DIR = os.path.join(os.path.dirname(__file__), '..', 'dataset')
 
 _IMAGE_TFREC_STRUCTURE = {
         'image' : tf.FixedLenFeature([], tf.string),
@@ -95,7 +95,7 @@ class TFDatasetWriter(object):
 
     def _split_train_eval(self):
         """ """
-        index_file = os.path.join(_DATASET_DIR, 'training_ground_truth.csv')
+        index_file = os.path.join(DATASET_DIR, 'training_ground_truth.csv')
         data = read_csv(index_file, sep=',')
         image_files = data['IMAGE_NAME']
         labels      = data['CLASS_INDEX']
@@ -120,10 +120,10 @@ class TFDatasetWriter(object):
 
     def write(self):
         def create_tf_record(rec_file, image_list):
-            rec_file = TFRecFile(os.path.join(_DATASET_DIR, rec_file))
+            rec_file = TFRecFile(os.path.join(DATASET_DIR, rec_file))
             for t in image_list:
                 image, label = t
-                rec_file.add_image(os.path.join(_DATASET_DIR, 'training', image), label)
+                rec_file.add_image(os.path.join(DATASET_DIR, 'training', image), label)
             rec_file.close()
 
         start_time = datetime.now()
@@ -160,9 +160,9 @@ class TFDatasetReader(object):
         self.num_classes = 200
         self.scale_min   = image_size + 32
         self.scale_max   = self.scale_min
-        train_file_name  = os.path.join(_DATASET_DIR, 'train_{:02d}.tfrecords')
+        train_file_name  = os.path.join(DATASET_DIR, 'train_{:02d}.tfrecords')
         self.train_files = [train_file_name.format(i+1) for i in range(5)]
-        self.eval_file   = os.path.join(_DATASET_DIR, 'eval.tfrecords')
+        self.eval_file   = os.path.join(DATASET_DIR, 'eval.tfrecords')
         self.shuffle_sz  = shuffle_buff_sz
 
     def _parse_eval_rec(self, tf_record):
@@ -253,12 +253,12 @@ def main():
         images = [21158, 35728, 37021, 76090, 79764]
         dec = JpegDecoder()
         for i in images:
-            url = os.path.join(_DATASET_DIR, 'corrupted_images', 'training_'+str(i)+'.jpg')
+            url = os.path.join(DATASET_DIR, 'corrupted_images', 'training_'+str(i)+'.jpg')
             _, h, w, c = dec(url)
             print ('URL: training_', i, '(', h, w, ')')
         print ('---------------------------')
         for i in images:
-            url = os.path.join(_DATASET_DIR, 'train_patch', 'training_'+str(i)+'.jpg')
+            url = os.path.join(DATASET_DIR, 'train_patch', 'training_'+str(i)+'.jpg')
             _, h, w, c = dec(url)
             print ('URL: training_', i, '(', h, w, ')')
     else:

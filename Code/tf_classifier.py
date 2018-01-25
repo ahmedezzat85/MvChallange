@@ -14,13 +14,7 @@ import utils
 class TFClassifier(object):
     """ Abtraction of TensorFlow functionality.
     """
-    def __init__(self, 
-                 model_name, 
-                 dataset,
-                 data_format='NHWC',
-                 data_aug=False, 
-                 logs_dir=None,
-                 bin_dir=None):
+    def __init__(self, model_name, data_format='NHWC', logs_dir=None):
 
         # Disable Tensorflow logs except for errors
         tf.logging.set_verbosity(tf.logging.ERROR)
@@ -28,8 +22,6 @@ class TFClassifier(object):
 
         # Parameter initializations
         self.logger       = None
-        self.dataset      = dataset
-        self.model_fn     = None
         self.model_name   = model_name
         self.base_tick    = time()
         self.dtype        = tf.float32
@@ -40,25 +32,24 @@ class TFClassifier(object):
         self.summary_op   = None
         self.data_format  = data_format
         self.global_step  = None
-        self.data_aug     = data_aug
         self.log_dir      = logs_dir
 
         # Get the neural network model function
         net_module    = import_module('model.' + model_name)
         self.model_fn = net_module.snpx_net_create
 
-        # # Directory for Model and deployment
-        # utils.create_dir(bin_dir)
-        # self.model_prfx = os.path.join(self.bin_dir, model_name)
+        self.chkpt_dir = os.path.join(self.log_dir, 'chkpt')
+        utils.create_dir(self.chkpt_dir)
+        self.chkpt_prfx = os.path.join(self.chkpt_dir, 'CHKPT')
 
     def tick(self):
         return time() - self.base_tick
-    
+
     def _load_dataset(self, training=True):
         """ """
         with tf.device('/cpu:0'):
-            self.dataset.read(self.batch_size, training, self.data_format, self.data_aug)
-
+            self.dataset.read(self.hp.batch_size, training, self.data_format, self.hp.data_aug)
+    
     def _forward_prop(self, batch, num_classes, training=True):
         """ """
         logits, predictions = self.model_fn(num_classes, batch, self.data_format, is_training=training)
@@ -67,22 +58,15 @@ class TFClassifier(object):
     def _create_train_op(self, logits):
         """ """
         self.global_step = tf.train.get_or_create_global_step()
-
-        # Get the optimizer
-        if self.hp.lr_decay:
-            lr = tf.train.exponential_decay(self.hp.lr, self.global_step, self.hp.lr_decay, 
-                                                self.hp.lr_step, True)
-        else:
-            lr = self.hp.lr
-        tf.summary.scalar("Learning Rate", lr)
+        tf.summary.scalar("Learning Rate", self.hp.lr)
 
         optmz = self.hp.optimizer.lower()
         if optmz == 'sgd':
-            opt = tf.train.MomentumOptimizer(lr, momentum=0.9)
+            opt = tf.train.MomentumOptimizer(self.hp.lr, momentum=0.9)
         elif optmz == 'adam':
-            opt = tf.train.AdamOptimizer(lr)
+            opt = tf.train.AdamOptimizer(self.hp.lr)
         elif optmz == 'rmsprop':
-            opt = tf.train.RMSPropOptimizer(lr)
+            opt = tf.train.RMSPropOptimizer(self.hp.lr)
  
         # Compute the loss and the train_op
         cross_entropy = tf.losses.softmax_cross_entropy(self.dataset.labels, logits) # needs wrapping
@@ -121,7 +105,7 @@ class TFClassifier(object):
                 self.tb_writer.flush()
                 elapsed = self.tick() - last_log_tick
                 if elapsed >= self.log_freq:
-                    speed = ((step - last_step)  * self.batch_size) / elapsed
+                    speed = ((step - last_step)  * self.hp.batch_size) / elapsed
                     last_step = step
                     last_log_tick  = self.tick()
                     self.logger.info('(%.3f)Epoch[%d] Batch[%d]\tloss: %.3f\tspeed: %.3f samples/sec', 
@@ -129,7 +113,7 @@ class TFClassifier(object):
             except tf.errors.OutOfRangeError:
                 break
         self.logger.info('Epoch Training Time = %.3f', self.tick() - epoch_start_time)
-        self.saver.save(self.tf_sess, self.chkpt_prfx, self.epoch)
+        self.saver.save(self.tf_sess, self.chkpt_prfx, self.epoch + 1)
 
     def _eval_loop(self):
         """ """
@@ -161,19 +145,18 @@ class TFClassifier(object):
         self.tf_sess = tf.Session(config=config)
         self.tf_sess.run(tf.group(tf.global_variables_initializer(), tf.local_variables_initializer()))
 
-    def train(self, num_epoch, begin_epoch, hp, log_freq_sec=1):
+    def train(self, dataset, hp, num_epoch, begin_epoch, log_freq_sec=1):
         """ """
-        t_start = datetime.now()
-        self.hp = hp
+        self.hp         = hp
+        self.dataset    = dataset
         self.log_freq   = log_freq_sec
-        self.batch_size = hp.batch_size
 
-        utils.create_dir(os.path.join(self.log_dir, 'chkpt'))        
-        self.chkpt_prfx = os.path.join(self.log_dir, 'chkpt', 'CHKPT')
+        t_start = datetime.now()
         self.logger = utils.create_logger(self.model_name, os.path.join(self.log_dir, 'Train.log'))
         self.logger.info("Training Started at  : " + t_start.strftime("%Y-%m-%d %H:%M:%S"))
 
         with tf.Graph().as_default():
+            # Load the dataset
             self._load_dataset()
 
             # Forward Propagation
@@ -248,8 +231,9 @@ class TFClassifier(object):
             self.tf_sess.close()
         return acc
 
-    def deploy(self, chkpt_id, img_size, num_classes):
+    def deploy(self, deploy_dir, img_size, num_classes, chkpt_id=0):
         """ """
+        utils.create_dir(deploy_dir)
         with tf.Graph().as_default():
             if self.data_format.startswith('NC'):
                 in_shape = [1, 3, img_size, img_size]
@@ -262,11 +246,18 @@ class TFClassifier(object):
 
             saver = tf.train.Saver()
             self.create_tf_session()
-            self.tb_writer  = tf.summary.FileWriter(self.model_dir, graph=self.tf_sess.graph)
-            chkpt = self.chkpt_prfx + '-' + str(chkpt_id)
+            self.tb_writer  = tf.summary.FileWriter(deploy_dir, graph=self.tf_sess.graph)
+            if chkpt_id == 0:
+                chkpt_state = tf.train.get_checkpoint_state(self.chkpt_dir)
+                chkpt = chkpt_state.model_checkpoint_path
+            else:
+                chkpt = self.chkpt_prfx + '-' + str(chkpt_id)
             saver.restore(self.tf_sess, chkpt)
+            saver.save(self.tf_sess, os.path.join(deploy_dir, self.model_name))
 
-            saver.save(self.tf_sess, self.model_prfx)
+            tf.train.write_graph(self.tf_sess.graph_def, deploy_dir, self.model_name+'.pb', False)
+            tf.train.write_graph(self.tf_sess.graph_def, deploy_dir, self.model_name+'.pbtxt')
+
             self.tb_writer.close()
             self.tf_sess.close()
 
