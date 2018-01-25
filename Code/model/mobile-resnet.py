@@ -8,7 +8,7 @@ class MobileResNet(TFNet):
     """
     def __init__(self, data, data_format, num_classes, is_train=True):
         dtype = data.dtype.base_dtype
-        super(MobileNet, self).__init__(dtype, data_format, train=is_train)
+        super(MobileResNet, self).__init__(dtype, data_format, train=is_train)
         self.net_out = tf.identity(data, name='data')
         self.num_classes = num_classes
 
@@ -36,8 +36,8 @@ class MobileResNet(TFNet):
         self._resnet_block(512, (3,3), stride=(2,2), act_fn='relu', conv_1x1=1, name='Block3')
         self._resnet_block(512, (3,3), stride=(1,1), act_fn='relu', conv_1x1=1, name='Block4')
         self._resnet_block(512, (3,3), stride=(1,1), act_fn='relu', conv_1x1=1, name='Block5')
-        net_out = self.conv_dw(net_out, 1024, (3,3), stride=(2,2), act_fn='relu', add_bn=True, name='Conv12')
-        net_out = self.conv_dw(net_out, 1024, (3,3), stride=(2,2), act_fn='relu', add_bn=True, name='Conv13')
+        net_out = self.conv_dw(self.net_out, 1024, (3,3), stride=(2,2), act_fn='relu', add_bn=True, name='Conv6')
+        net_out = self.conv_dw(net_out, 1024, (3,3), stride=(2,2), act_fn='relu', add_bn=True, name='Conv7')
         net_out = self.global_pool(net_out, 'avg', name="global_pool")
         net_out = self.flatten(net_out)
         net_out = self.Softmax(net_out, self.num_classes)
