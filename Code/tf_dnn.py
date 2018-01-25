@@ -179,7 +179,6 @@ class TFClassifier(object):
                 # Load the saved model from a checkpoint
                 chkpt = self.chkpt_prfx + '-' + str(begin_epoch)
                 self.logger.info("Loading Checkpoint " + chkpt)
-                begin_epoch += 1
                 num_epoch   += begin_epoch
                 self.saver = tf.train.Saver(max_to_keep=50)
                 self.saver.restore(self.tf_sess, chkpt)

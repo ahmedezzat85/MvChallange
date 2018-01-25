@@ -1,13 +1,13 @@
 @echo off
 
 set PYTHON=python3
-set IMG_SZ=192
+set IMG_SZ=224
 set NUM_EPOCH=1
-set BATCH_SZ=16
+set BATCH_SZ=4
 set FP16=0
 set FMT=NHWC
-set model=mobilenet
-set MODEL_LOG_DIR=test
+set model=mobile-resnet
+set MODEL_LOG_DIR=feature7x7
 set LR=0.001
 set L2_REG=0.0
 set DATA_AUG=1

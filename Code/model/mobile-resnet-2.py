@@ -36,7 +36,7 @@ class MobileResNet(TFNet):
         self._resnet_block(512, (3,3), stride=(1,1), act_fn='relu', conv_1x1=0, name='Block4')
         self._resnet_block(512, (3,3), stride=(1,1), act_fn='relu', conv_1x1=0, name='Block5')
         net_out = self.conv_dw(self.net_out, 1024, (3,3), stride=(2,2), act_fn='relu', add_bn=True, name='Conv6')
-        net_out = self.conv_dw(net_out, 1024, (3,3), stride=(1,1), act_fn='relu', add_bn=True, name='Conv7')
+        net_out = self.conv_dw(net_out, 1024, (3,3), stride=(2,2), act_fn='relu', add_bn=True, name='Conv7')
         net_out = self.global_pool(net_out, 'avg', name="global_pool")
         net_out = self.flatten(net_out)
         net_out = self.Softmax(net_out, self.num_classes)
