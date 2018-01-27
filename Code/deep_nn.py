@@ -24,8 +24,8 @@ class DeepNN(object):
 
     def train(self):
         begin_epoch = self.flags.begin_epoch
-        log_file    = os.path.join(self.logs_dir, args.model_name+'_'+str(begin_epoch)+'.log')
-        self.logger = utils.create_logger(args.model_name, log_file)
+        log_file    = os.path.join(self.logs_dir, self.flags.model_name+'_'+str(begin_epoch)+'.log')
+        self.logger = utils.create_logger(self.flags.model_name, log_file)
 
         # Pack the hyper-parameters
         hp_dict = {'batch_size': self.flags.batch_size, 'optimizer': self.flags.optimizer,
@@ -41,7 +41,7 @@ class DeepNN(object):
                 self.module.train(self.dataset, hp, self.flags.lr_step, begin_epoch, logger=self.logger)
                 begin_epoch += self.flags.lr_step
                 hp.lr *= self.flags.lr_decay
-                self.
+
                 log_file    = os.path.join(self.logs_dir, args.model_name+'_'+str(begin_epoch)+'.log')
                 for h in self.logger.handlers[:]: self.logger.removeHandler(h)
                 self.logger = utils.create_logger(args.model_name, log_file)

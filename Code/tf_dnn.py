@@ -165,7 +165,7 @@ class TFClassifier(object):
         self.tf_sess = tf.Session(config=config)
         self.tf_sess.run(tf.group(tf.global_variables_initializer(), tf.local_variables_initializer()))
 
-    def train(self, dataset, hp, num_epoch, begin_epoch, log_freq_sec=1, logger=logging):
+    def train(self, dataset, hp, num_epoch, begin_epoch, log_freq_sec=1, logger=utils.logging):
         """ """
         self.hp         = hp
         self.dataset    = dataset
@@ -205,7 +205,7 @@ class TFClassifier(object):
             # Training Loop
             for self.epoch in range(begin_epoch, num_epoch):
                 lr_summ = tf.summary.Summary()
-                acc_summ.value.add(simple_value=self.hp.lr, tag="Learning-Rate")
+                lr_summ.value.add(simple_value=self.hp.lr, tag="Learning-Rate")
                 self.tb_writer.add_summary(lr_summ, self.epoch)
                 self.tb_writer.flush()
 
