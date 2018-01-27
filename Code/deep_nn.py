@@ -42,9 +42,9 @@ class DeepNN(object):
                 begin_epoch += self.flags.lr_step
                 hp.lr *= self.flags.lr_decay
 
-                log_file    = os.path.join(self.logs_dir, args.model_name+'_'+str(begin_epoch)+'.log')
+                log_file    = os.path.join(self.logs_dir, self.flags.model_name+'_'+str(begin_epoch)+'.log')
                 for h in self.logger.handlers[:]: self.logger.removeHandler(h)
-                self.logger = utils.create_logger(args.model_name, log_file)
+                self.logger = utils.create_logger(self.flags.model_name, log_file)
         else:
             self.module.train(self.dataset, hp, self.flags.num_epoch, begin_epoch, logger=self.logger)
 
