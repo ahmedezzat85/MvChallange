@@ -4,9 +4,14 @@
 from __future__ import absolute_import
 
 import os
+import sys
 import argparse
 import threading
 from datetime import datetime
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 import numpy as np 
 import tensorflow as tf
@@ -18,15 +23,13 @@ from vgg_preprocessing import preprocess_image
 ##=======##=======##=======##
 # CONSTANTS
 ##=======##=======##=======##
-_DATASET_SIZE    = 80000
-_NUM_CLASSES     = 200
+_DATASET_SIZE    = 50000
+_NUM_CLASSES     = 10
 _IMG_PER_CLASS   = _DATASET_SIZE // _NUM_CLASSES
-_TRAIN_SET_SIZE  = 75000
-_VAL_SET_SIZE    = 5000
-_TRAIN_PER_CLASS = _IMG_PER_CLASS * (_TRAIN_SET_SIZE / _DATASET_SIZE)
-_VAL_PER_CLASS   = _IMG_PER_CLASS * (_VAL_SET_SIZE / _DATASET_SIZE)
+_TRAIN_SET_SIZE  = 50000
+_VAL_SET_SIZE    = 10000
 
-DATASET_DIR = os.path.join(os.path.dirname(__file__), '..', 'dataset')
+DATASET_DIR = os.path.join(os.path.dirname(__file__), '..', 'dataset', 'CIFAR-10')
 
 _IMAGE_TFREC_STRUCTURE = {
         'image' : tf.FixedLenFeature([], tf.string),
@@ -43,36 +46,13 @@ def _int64_feature(value):
 def _bytes_feature(value):
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
-class JpegDecoder(object):
-    """ Decode JPG image from file.
-    """
-    def __init__(self):
-        self.tf_sess = tf.Session()
-        self._jpeg_img = tf.placeholder(dtype=tf.string)
-        self._jpeg_dec = tf.image.decode_jpeg(self._jpeg_img, channels=3)
-
-    def __call__(self, jpeg_image_file):
-        try:
-            with tf.gfile.FastGFile(jpeg_image_file, mode='rb') as fp:
-                jpeg_image = fp.read()
-            
-            image = self.tf_sess.run(self._jpeg_dec, feed_dict={self._jpeg_img: jpeg_image})
-            h, w, c = image.shape
-            return jpeg_image, h, w, c
-        except:
-            print ('EXCEPTION --> ', jpeg_image_file)
-    
-    def close(self):
-        self.tf_sess.close()
-
 class TFRecFile(object):
     """ """
     def __init__(self, tf_rec_out_file):
         self.writer   = tf.python_io.TFRecordWriter(tf_rec_out_file)
 
-    def add_image(self, image_file, label):
-        with tf.gfile.FastGFile(image_file, mode='rb') as fp:
-            image = fp.read()
+    def add_image(self, image, label):
+        image = image.tostring()
         features = tf.train.Features(feature={
             'image' : _bytes_feature(image),
             'label' : _int64_feature(label)
@@ -83,66 +63,59 @@ class TFRecFile(object):
     def close(self):
         self.writer.close()
 
+def _load_CIFAR_batch(batch_file):
+    """ Read a CIFAR-10 batch file into numpy arrays """
+    with open(os.path.join(DATASET_DIR, 'raw', batch_file), 'rb') as f:
+        if sys.version_info.major == 3:
+            datadict = pickle.load(f, encoding='bytes')
+        else:
+            datadict = pickle.load(f)
+        images = datadict[b'data']
+        labels = datadict[b'labels']
+        
+        labels = np.array(labels)
+        images = np.reshape(images,[-1, 3, 32, 32])
+        images = images.swapaxes(1,3)
+        return images, labels
+
+def get_CIFAR10_data():
+    """   """
+    for b in range(1,6):
+        f = 'data_batch_' + str(b)
+        xb, yb = _load_CIFAR_batch(f)
+        if b > 1:
+            x_train = np.concatenate((x_train, xb))
+            y_train = np.concatenate((y_train, yb))
+            del xb, yb
+        else:
+            x_train = xb
+            y_train = yb
+
+    x_test, y_test = _load_CIFAR_batch('test_batch')
+    train_set = (x_train, y_train)
+    eval_set  = (x_test, y_test)
+    return train_set, eval_set
+
+
 class TFDatasetWriter(object):
     """
     """
-    def __init__(self, num_rec_files=5):
-        # TFRecord Size 
-        rec_size = _TRAIN_SET_SIZE // num_rec_files
-        if (rec_size * num_rec_files) != _TRAIN_SET_SIZE: 
-            raise ValueError('num_train_rec not suitable')
-        self.num_rec = num_rec_files
-
-    def _split_train_eval(self):
-        """ """
-        index_file = os.path.join(DATASET_DIR, 'training_ground_truth.csv')
-        data = read_csv(index_file, sep=',')
-        image_files = data['IMAGE_NAME']
-        labels      = data['CLASS_INDEX']
-
-        # Random Shuffle with repeatable pattern
-        index = list(range(_DATASET_SIZE))
-        np.random.seed(12345)
-        np.random.shuffle(index)
-
-        # Split training set into train/val
-        self.train_set = []
-        self.eval_set  = []
-        counters  = np.zeros([_NUM_CLASSES, 1])
-        for i in index:
-            label = labels[i]
-            file  = image_files[i]
-            if counters[label - 1] < _TRAIN_PER_CLASS:
-                self.train_set.append((file, label))
-                counters[label - 1] += 1
-            else:
-                self.eval_set.append((file, label))
+    def __init__(self):
+        pass
 
     def write(self):
-        def create_tf_record(rec_file, image_list):
+        def create_tf_record(rec_file, dataset):
             rec_file = TFRecFile(os.path.join(DATASET_DIR, rec_file))
-            for t in image_list:
-                image, label = t
-                rec_file.add_image(os.path.join(DATASET_DIR, 'training', image), label)
+            images, labels = dataset
+            for i in range(len(images)):
+                rec_file.add_image(images[i], labels[i])
             rec_file.close()
 
         start_time = datetime.now()
         t_start    = start_time
-        self._split_train_eval()
-        train_set = utils.list_split(self.train_set, self.num_rec)
-
-        coord = tf.train.Coordinator()
-        threads = []
-        for rec_id in range(self.num_rec):
-            args = ('train_0' + str(rec_id+1) + '.tfrecords', train_set[rec_id])
-            th = threading.Thread(target=create_tf_record, args=args)
-            th.start()
-            threads.append(th)
-        args = ('eval.tfrecords', self.eval_set)
-        th = threading.Thread(target=create_tf_record, args=args)
-        th.start()
-        threads.append(th)
-        coord.join(threads)
+        train_set, eval_set = get_CIFAR10_data()
+        create_tf_record('train.tfrecords', train_set)
+        create_tf_record('eval.tfrecords', eval_set)
         print ('ELAPSED TIME:  ', datetime.now() - t_start)
             
 
@@ -153,25 +126,24 @@ class TFDatasetWriter(object):
 class TFDatasetReader(object):
     """ 
     """
-    def __init__(self, image_size=224, shuffle_buff_sz=5000):
+    def __init__(self, image_size=32, shuffle_buff_sz=5000):
 
-        self.name        = 'IntelMovidius-200'
-        self.shape       = (image_size, image_size, 3)
+        self.name        = 'CIFAR-10'
         self.dataset_sz  = _TRAIN_SET_SIZE
-        self.num_classes = 200
+        self.shape       = (image_size, image_size, 3)
+        self.num_classes = _NUM_CLASSES
         self.scale_min   = image_size + 32
         self.scale_max   = self.scale_min
-        train_file_name  = os.path.join(DATASET_DIR, 'train_{:02d}.tfrecords')
-        self.train_files = [train_file_name.format(i+1) for i in range(5)]
+        self.train_file  = os.path.join(DATASET_DIR, 'train.tfrecords')
         self.eval_file   = os.path.join(DATASET_DIR, 'eval.tfrecords')
         self.shuffle_sz  = shuffle_buff_sz
 
     def _parse_eval_rec(self, tf_record, dtype):
         """ """
         feature = tf.parse_single_example(tf_record, features=_IMAGE_TFREC_STRUCTURE)
-        image = tf.image.decode_jpeg(feature['image'], channels=3)
+        image = tf.decode_raw(feature['image'], tf.uint8)
+        image = tf.reshape(image, (32, 32, 3))
         image = tf.image.convert_image_dtype(image, dtype=tf.float32)
-        image = preprocess_image(image, self.shape[0], self.shape[1], resize_side_min=self.scale_min)
         image = tf.cast(image, dtype)
         label = tf.cast(feature['label'], tf.int64)
         return image, label
@@ -179,10 +151,9 @@ class TFDatasetReader(object):
     def _parse_train_rec(self, tf_record, dtype):
         """ """
         feature = tf.parse_single_example(tf_record, features=_IMAGE_TFREC_STRUCTURE)
-        image = tf.image.decode_jpeg(feature['image'], channels=3)
+        image = tf.decode_raw(feature['image'], tf.uint8)
+        image = tf.reshape(image, (32, 32, 3))
         image = tf.image.convert_image_dtype(image, dtype=tf.float32)
-        image = preprocess_image(image, self.shape[0], self.shape[1], is_training=True, 
-                                    resize_side_max=self.scale_max, resize_side_min=self.scale_min)
         image = tf.cast(image, dtype)
         label = tf.cast(feature['label'], tf.int64)
         return image, label
@@ -201,10 +172,7 @@ class TFDatasetReader(object):
         self.eval_init_op = data_iter.make_initializer(eval_dataset)
 
         if for_training is True:
-            train_dataset = tf.data.Dataset.from_tensor_slices(self.train_files)
-            train_dataset = train_dataset.flat_map(tf.data.TFRecordDataset)
-            train_dataset = train_dataset.shuffle(len(self.train_files))
-            # train_dataset = tf.data.TFRecordDataset(self.train_files)
+            train_dataset = tf.data.TFRecordDataset(self.train_file)
             train_dataset = train_dataset.map(lambda tf_rec: self._parse_train_rec(tf_rec, dtype), 4)
             train_dataset = train_dataset.prefetch(batch_size)
             train_dataset = train_dataset.shuffle(self.shuffle_sz)
@@ -233,12 +201,12 @@ def main():
 
     if args.writer is True:
         print ('Dataset Writer ...')
-        writer = TFDatasetWriter(args.num_files)
+        writer = TFDatasetWriter()
         writer.write()
     elif args.reader is True:
         print ('Reader Test ....')
         reader = TFDatasetReader(image_size=192, shuffle_buff_sz=2000)
-        reader.read(128, True, 'NCHW', True)
+        reader.read(200, True, 'NCHW')
         with tf.Session() as sess:
             t_start = datetime.now()
             sess.run(reader.train_init_op)
@@ -246,25 +214,13 @@ def main():
             while True:
                 try:
                     images, labels = sess.run([reader.images, reader.labels])
-                    print ('batch ', i)
                     i += 1
                 except tf.errors.OutOfRangeError:
                     break
-            print ('Time for training set: ', datetime.now() - t_start)
-            t_start = datetime.now()
+        print ('batch ', i)
+        print ('Time for training set: ', datetime.now() - t_start)
+        t_start = datetime.now()
             
-    elif args.jpg is True:
-        images = [21158, 35728, 37021, 76090, 79764]
-        dec = JpegDecoder()
-        for i in images:
-            url = os.path.join(DATASET_DIR, 'corrupted_images', 'training_'+str(i)+'.jpg')
-            _, h, w, c = dec(url)
-            print ('URL: training_', i, '(', h, w, ')')
-        print ('---------------------------')
-        for i in images:
-            url = os.path.join(DATASET_DIR, 'train_patch', 'training_'+str(i)+'.jpg')
-            _, h, w, c = dec(url)
-            print ('URL: training_', i, '(', h, w, ')')
     else:
         parser.print_help()
 

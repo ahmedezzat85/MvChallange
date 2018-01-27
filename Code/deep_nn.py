@@ -23,33 +23,16 @@ class DeepNN(object):
         self.module   = TFClassifier(args.model_name, args.data_format, self.logs_dir)
 
     def train(self):
-        begin_epoch = self.flags.begin_epoch
-        log_file    = os.path.join(self.logs_dir, self.flags.model_name+'_'+str(begin_epoch)+'.log')
-        self.logger = utils.create_logger(self.flags.model_name, log_file)
-
+        decay_steps = int((self.dataset.dataset_sz / self.flags.batch_size) * self.flags.lr_step)
+        
         # Pack the hyper-parameters
         hp_dict = {'batch_size': self.flags.batch_size, 'optimizer': self.flags.optimizer,
-                    'lr': self.flags.lr, 'wd': self.flags.wd, 'data_aug': self.flags.data_aug}
+                    'lr': self.flags.lr, 'wd': self.flags.wd, 'lr_decay': self.flags.lr_decay,
+                    'lr_decay_steps': decay_steps, 'data_aug': self.flags.data_aug}
         hp = utils.DictToAttrs(hp_dict)
-
-        t_start = datetime.now()
-        self.logger.info("Training Started at  : " + t_start.strftime("%Y-%m-%d %H:%M:%S"))
-
-        if self.flags.lr_decay:
-            num_iter = self.flags.num_epoch // self.flags.lr_step 
-            for i in range(num_iter):
-                self.module.train(self.dataset, hp, self.flags.lr_step, begin_epoch, logger=self.logger)
-                begin_epoch += self.flags.lr_step
-                hp.lr *= self.flags.lr_decay
-
-                log_file    = os.path.join(self.logs_dir, self.flags.model_name+'_'+str(begin_epoch)+'.log')
-                for h in self.logger.handlers[:]: self.logger.removeHandler(h)
-                self.logger = utils.create_logger(self.flags.model_name, log_file)
-        else:
-            self.module.train(self.dataset, hp, self.flags.num_epoch, begin_epoch, logger=self.logger)
-
-        self.logger.info("Training Finished at : " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        self.logger.info("Total Training Time  : " + str(datetime.now() - t_start))
+        
+        # Train the model
+        self.module.train(self.dataset, hp, self.flags.num_epoch, self.flags.begin_epoch)
 
     def deploy(self):
         """ """

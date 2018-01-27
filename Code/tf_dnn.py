@@ -21,7 +21,7 @@ class TFClassifier(object):
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
         # Parameter initializations
-        self.logger       = utils.logging
+        self.logger       = None
         self.model_name   = model_name
         self.base_tick    = time()
         self.dtype        = tf.float32
@@ -80,15 +80,21 @@ class TFClassifier(object):
     def _create_train_op(self, logits):
         """ """
         self.global_step = tf.train.get_or_create_global_step()
-        # self.summary_list.append(tf.summary.scalar("Learn Rate", self.hp.lr))
+        # Get the optimizer
+        if self.hp.lr_decay:
+            lr = tf.train.exponential_decay(self.hp.lr, self.global_step, self.hp.lr_decay_steps,  
+                                                self.hp.lr_decay, True)
+        else:
+            lr = self.hp.lr
+        self.summary_list.append(tf.summary.scalar("Learning-Rate", lr))
 
         optmz = self.hp.optimizer.lower()
         if optmz == 'sgd':
-            opt = tf.train.MomentumOptimizer(self.hp.lr, momentum=0.9)
+            opt = tf.train.MomentumOptimizer(lr, momentum=0.9)
         elif optmz == 'adam':
-            opt = tf.train.AdamOptimizer(self.hp.lr)
+            opt = tf.train.AdamOptimizer(lr)
         elif optmz == 'rmsprop':
-            opt = tf.train.RMSPropOptimizer(self.hp.lr)
+            opt = tf.train.RMSPropOptimizer(lr)
  
         # Compute the loss and the train_op
         self.loss = self.loss_fn(logits)
@@ -165,12 +171,15 @@ class TFClassifier(object):
         self.tf_sess = tf.Session(config=config)
         self.tf_sess.run(tf.group(tf.global_variables_initializer(), tf.local_variables_initializer()))
 
-    def train(self, dataset, hp, num_epoch, begin_epoch, log_freq_sec=1, logger=utils.logging):
+    def train(self, dataset, hp, num_epoch, begin_epoch, log_freq_sec=1):
         """ """
         self.hp         = hp
         self.dataset    = dataset
         self.log_freq   = log_freq_sec
-        self.logger     = logger
+
+        t_start = datetime.now()
+        self.logger = utils.create_logger(self.model_name, os.path.join(self.log_dir, 'Train.log'))
+        self.logger.info("Training Started at  : " + t_start.strftime("%Y-%m-%d %H:%M:%S"))
 
         with tf.Graph().as_default():
             # Load the dataset
@@ -186,7 +195,6 @@ class TFClassifier(object):
             self.create_tf_session()
 
             # Create Tensorboard stuff
-            
             self.summary_op = tf.summary.merge(self.summary_list)
             self.tb_writer  = tf.summary.FileWriter(self.log_dir, graph=self.tf_sess.graph)
             self._dump_hyperparameters(begin_epoch)
@@ -204,11 +212,6 @@ class TFClassifier(object):
 
             # Training Loop
             for self.epoch in range(begin_epoch, num_epoch):
-                lr_summ = tf.summary.Summary()
-                lr_summ.value.add(simple_value=self.hp.lr, tag="Learning-Rate")
-                self.tb_writer.add_summary(lr_summ, self.epoch)
-                self.tb_writer.flush()
-
                 # Training
                 self._train_loop()
                 # Validation
@@ -224,6 +227,9 @@ class TFClassifier(object):
             # Close and terminate
             self.tb_writer.close()
             self.tf_sess.close()
+
+        self.logger.info("Training Finished at : " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        self.logger.info("Total Training Time  : " + str(datetime.now() - t_start))
 
     def evaluate_model(self):
         """ """
