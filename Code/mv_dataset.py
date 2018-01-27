@@ -153,9 +153,9 @@ class TFDatasetWriter(object):
 class TFDatasetReader(object):
     """ 
     """
-    def __init__(self, dtype=tf.float32, image_size=224, shuffle_buff_sz=5000):
+    def __init__(self, image_size=224, shuffle_buff_sz=5000):
 
-        self.dtype       = dtype
+        self.name        = 'IntelMovidius-200'
         self.shape       = (image_size, image_size, 3)
         self.num_classes = 200
         self.scale_min   = image_size + 32
@@ -165,30 +165,33 @@ class TFDatasetReader(object):
         self.eval_file   = os.path.join(DATASET_DIR, 'eval.tfrecords')
         self.shuffle_sz  = shuffle_buff_sz
 
-    def _parse_eval_rec(self, tf_record):
+    def _parse_eval_rec(self, tf_record, dtype):
         """ """
         feature = tf.parse_single_example(tf_record, features=_IMAGE_TFREC_STRUCTURE)
         image = tf.image.decode_jpeg(feature['image'], channels=3)
         image = tf.image.convert_image_dtype(image, dtype=tf.float32)
         image = preprocess_image(image, self.shape[0], self.shape[1], resize_side_min=self.scale_min)
+        image = tf.cast(image, dtype)
         label = tf.cast(feature['label'], tf.int64)
         return image, label
 
-    def _parse_train_rec(self, tf_record):
+    def _parse_train_rec(self, tf_record, dtype):
         """ """
         feature = tf.parse_single_example(tf_record, features=_IMAGE_TFREC_STRUCTURE)
         image = tf.image.decode_jpeg(feature['image'], channels=3)
         image = tf.image.convert_image_dtype(image, dtype=tf.float32)
         image = preprocess_image(image, self.shape[0], self.shape[1], is_training=True, 
                                     resize_side_max=self.scale_max, resize_side_min=self.scale_min)
-        image = tf.cast(image, self.dtype)
+        image = tf.cast(image, dtype)
         label = tf.cast(feature['label'], tf.int64)
         return image, label
 
-    def read(self, batch_size, for_training=True, data_format='NCHW', data_aug=False):
+    def read(self, batch_size, for_training=True, data_format='NCHW', data_aug=False, dtype=tf.float32):
         """ """
+        self.dtype = dtype
+
         eval_dataset  = tf.data.TFRecordDataset(self.eval_file)
-        eval_dataset  = eval_dataset.map(lambda tf_rec: self._parse_eval_rec(tf_rec))
+        eval_dataset  = eval_dataset.map(lambda tf_rec: self._parse_eval_rec(tf_rec, dtype))
         eval_dataset  = eval_dataset.prefetch(batch_size)
         eval_dataset  = eval_dataset.batch(batch_size)
         out_types = eval_dataset.output_types
@@ -201,7 +204,7 @@ class TFDatasetReader(object):
             train_dataset = train_dataset.flat_map(tf.data.TFRecordDataset)
             train_dataset = train_dataset.shuffle(len(self.train_files))
             # train_dataset = tf.data.TFRecordDataset(self.train_files)
-            train_dataset = train_dataset.map(lambda tf_rec: self._parse_train_rec(tf_rec), 10)
+            train_dataset = train_dataset.map(lambda tf_rec: self._parse_train_rec(tf_rec, dtype), 4)
             train_dataset = train_dataset.prefetch(batch_size)
             train_dataset = train_dataset.shuffle(self.shuffle_sz)
             train_dataset = train_dataset.batch(batch_size)

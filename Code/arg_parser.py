@@ -25,7 +25,7 @@ def parse_cmd_line_options():
     train_parser.add_argument('--data-aug'    , type=int   , help='Use data-augmentation to extend the dataset.')
     train_parser.add_argument('--batch-size'  , type=int   , help='Training mini-batch size.')
     train_parser.add_argument('--lr-step'     , type=int   , help='Learning rate decay step in epochs.')
-    train_parser.add_argument('--lr-decay'    , type=int   , help='Learning rate decay rate.')
+    train_parser.add_argument('--lr-decay'    , type=float , help='Learning rate decay rate.')
     train_parser.add_argument('--num-epoch'   , type=int   , help='Number of epochs for the training process.')
     train_parser.add_argument('--begin-epoch' , type=int   , help='Epoch ID of from which the training will start. Useful for training resume.')
 

@@ -21,7 +21,7 @@ class TFClassifier(object):
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
         # Parameter initializations
-        self.logger       = None
+        self.logger       = utils.logging
         self.model_name   = model_name
         self.base_tick    = time()
         self.dtype        = tf.float32
@@ -33,6 +33,7 @@ class TFClassifier(object):
         self.data_format  = data_format
         self.global_step  = None
         self.log_dir      = logs_dir
+        self.summary_list = []
 
         # Get the neural network model function
         net_module    = import_module('model.' + model_name)
@@ -45,10 +46,26 @@ class TFClassifier(object):
     def tick(self):
         return time() - self.base_tick
 
+    def _dump_hyperparameters(self, begin_epoch):
+        """ """
+        hp = [
+            ['**Input Size**', str(self.dataset.shape)],
+            ['**Scales**', '{'+str(self.dataset.scale_min)+', '+str(self.dataset.scale_max)+'}'],
+            ['**Learning Rate**', str(self.hp.lr)], 
+            ['**Optimizer**', self.hp.optimizer], 
+            ['**Weight Decay**', str(self.hp.wd)], 
+            ['**Batch Size**', str(self.hp.batch_size)]]
+        summ_op = tf.summary.merge(
+                    [tf.summary.text(self.model_name + '/HyperParameters', tf.convert_to_tensor(hp)),
+                    tf.summary.text(self.model_name + '/Dataset', tf.convert_to_tensor(self.dataset.name))])
+        s = self.tf_sess.run(summ_op)
+        self.tb_writer.add_summary(s, begin_epoch)
+        self.tb_writer.flush()
+
     def _load_dataset(self, training=True):
         """ """
         with tf.device('/cpu:0'):
-            self.dataset.read(self.hp.batch_size, training, self.data_format, self.hp.data_aug)
+            self.dataset.read(self.hp.batch_size, training, self.data_format, self.hp.data_aug, self.dtype)
     
     def _forward_prop(self, batch, num_classes, training=True):
         """ """
@@ -57,13 +74,13 @@ class TFClassifier(object):
 
     def loss_fn(self, logits):
         cross_entropy = tf.losses.softmax_cross_entropy(self.dataset.labels, logits)
-        tf.summary.scalar("Cross Entropy", cross_entropy)
+        self.summary_list.append(tf.summary.scalar("Loss", cross_entropy))
         return cross_entropy
 
     def _create_train_op(self, logits):
         """ """
         self.global_step = tf.train.get_or_create_global_step()
-        tf.summary.scalar("Learning Rate", self.hp.lr)
+        # self.summary_list.append(tf.summary.scalar("Learn Rate", self.hp.lr))
 
         optmz = self.hp.optimizer.lower()
         if optmz == 'sgd':
@@ -148,15 +165,12 @@ class TFClassifier(object):
         self.tf_sess = tf.Session(config=config)
         self.tf_sess.run(tf.group(tf.global_variables_initializer(), tf.local_variables_initializer()))
 
-    def train(self, dataset, hp, num_epoch, begin_epoch, log_freq_sec=1):
+    def train(self, dataset, hp, num_epoch, begin_epoch, log_freq_sec=1, logger=logging):
         """ """
         self.hp         = hp
         self.dataset    = dataset
         self.log_freq   = log_freq_sec
-
-        t_start = datetime.now()
-        self.logger = utils.create_logger(self.model_name, os.path.join(self.log_dir, 'Train.log'))
-        self.logger.info("Training Started at  : " + t_start.strftime("%Y-%m-%d %H:%M:%S"))
+        self.logger     = logger
 
         with tf.Graph().as_default():
             # Load the dataset
@@ -172,8 +186,10 @@ class TFClassifier(object):
             self.create_tf_session()
 
             # Create Tensorboard stuff
-            self.summary_op = tf.summary.merge_all()
+            
+            self.summary_op = tf.summary.merge(self.summary_list)
             self.tb_writer  = tf.summary.FileWriter(self.log_dir, graph=self.tf_sess.graph)
+            self._dump_hyperparameters(begin_epoch)
 
             if begin_epoch > 0:
                 # Load the saved model from a checkpoint
@@ -188,24 +204,26 @@ class TFClassifier(object):
 
             # Training Loop
             for self.epoch in range(begin_epoch, num_epoch):
+                lr_summ = tf.summary.Summary()
+                acc_summ.value.add(simple_value=self.hp.lr, tag="Learning-Rate")
+                self.tb_writer.add_summary(lr_summ, self.epoch)
+                self.tb_writer.flush()
+
                 # Training
                 self._train_loop()
                 # Validation
                 val_acc = self._eval_loop()
                 # Visualize Training
                 acc_summ = tf.summary.Summary()
-                summ_val = acc_summ.value.add(simple_value=val_acc, tag="Validation-Accuracy")
+                acc_summ.value.add(simple_value=val_acc, tag="Validation-Accuracy")
+                self.tb_writer.flush()
+
                 self.tb_writer.add_summary(acc_summ, self.epoch)
                 self.logger.info('Epoch[%d] Validation-Accuracy = %.2f%%', self.epoch, val_acc)
-                # Flush Tensorboard Writer
-                self.tb_writer.flush()
 
             # Close and terminate
             self.tb_writer.close()
             self.tf_sess.close()
-
-        self.logger.info("Training Finished at : " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        self.logger.info("Total Training Time  : " + str(datetime.now() - t_start))
 
     def evaluate_model(self):
         """ """
