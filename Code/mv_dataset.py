@@ -110,11 +110,11 @@ class TFDatasetWriter(object):
         self.eval_set  = []
         counters  = np.zeros([_NUM_CLASSES, 1])
         for i in index:
-            label = labels[i]
+            label = labels[i] - 1 # Labels are from 1-200, convert to 0-199
             file  = image_files[i]
-            if counters[label - 1] < _TRAIN_PER_CLASS:
+            if counters[label] < _TRAIN_PER_CLASS:
                 self.train_set.append((file, label))
-                counters[label - 1] += 1
+                counters[label] += 1
             else:
                 self.eval_set.append((file, label))
 
