@@ -50,11 +50,13 @@ class TFClassifier(object):
         """ """
         hp = [
             ['**Input Size**', str(self.dataset.shape)],
+            ['**Batch Size**', str(self.hp.batch_size)],
             ['**Scales**', '{'+str(self.dataset.scale_min)+', '+str(self.dataset.scale_max)+'}'],
-            ['**Learning Rate**', str(self.hp.lr)], 
             ['**Optimizer**', self.hp.optimizer], 
+            ['**Learning Rate**', str(self.hp.lr)], 
             ['**Weight Decay**', str(self.hp.wd)], 
-            ['**Batch Size**', str(self.hp.batch_size)]]
+            ['**LR Decay**', str(self.hp.lr_decay)],
+            ['**Decay Epochs**', str(self.hp.lr_decay_epochs)]]
         summ_op = tf.summary.merge(
                     [tf.summary.text(self.model_name + '/HyperParameters', tf.convert_to_tensor(hp)),
                     tf.summary.text(self.model_name + '/Dataset', tf.convert_to_tensor(self.dataset.name))])
@@ -82,8 +84,8 @@ class TFClassifier(object):
         self.global_step = tf.train.get_or_create_global_step()
         # Get the optimizer
         if self.hp.lr_decay:
-            lr = tf.train.exponential_decay(self.hp.lr, self.global_step, self.hp.lr_decay_steps,  
-                                                self.hp.lr_decay, True)
+            decay_steps = int((self.dataset.dataset_sz / self.hp.batch_size) * self.hp.lr_decay_epochs)
+            lr = tf.train.exponential_decay(self.hp.lr, self.global_step, decay_steps, self.hp.lr_decay, True)
         else:
             lr = self.hp.lr
         self.summary_list.append(tf.summary.scalar("Learning-Rate", lr))
@@ -111,8 +113,11 @@ class TFClassifier(object):
 
     def _create_eval_op(self, predictions, labels):
         """ """
-        acc_tensor   = tf.equal(tf.argmax(predictions, axis=1), tf.argmax(labels, axis=1))
-        self.eval_op = tf.reduce_mean(tf.cast(acc_tensor, tf.float32))
+        top1_tensor  = tf.equal(tf.argmax(predictions, axis=1), tf.argmax(labels, axis=1))
+        top1_op      = tf.reduce_mean(tf.cast(top1_tensor, tf.float32))
+        top5_tensor  = tf.nn.in_top_k(predictions, tf.argmax(labels, axis=1), 5)
+        top5_op     = tf.reduce_mean(tf.cast(top5_tensor, tf.float32))
+        self.eval_op = [top1_op, top5_op]
 
     def _train_loop(self):
         """ """
@@ -145,19 +150,22 @@ class TFClassifier(object):
         """ """
         self.tf_sess.run(self.dataset.eval_init_op)
         epoch_start_time = self.tick()
-        val_acc = 0
+        top1_acc = 0
+        top5_acc = 0
         n = 0
         while True:
             try:
                 feed_dict = {self.training: False}
-                batch_acc = self.tf_sess.run(self.eval_op, feed_dict)
-                val_acc += batch_acc
+                top1, top5 = self.tf_sess.run(self.eval_op, feed_dict)
+                top1_acc += top1
+                top5_acc += top5
                 n += 1
             except tf.errors.OutOfRangeError:
                 break
-        eval_acc = (val_acc * 100.0) / n
+        top1_acc = (top1_acc * 100.0) / n
+        top5_acc = (top5_acc * 100.0) / n
         self.logger.info('Validation Time = %.3f', self.tick() - epoch_start_time)
-        return eval_acc
+        return top1_acc, top5_acc
 
     def create_tf_session(self):
         """ """
@@ -215,14 +223,17 @@ class TFClassifier(object):
                 # Training
                 self._train_loop()
                 # Validation
-                val_acc = self._eval_loop()
-                # Visualize Training
-                acc_summ = tf.summary.Summary()
-                acc_summ.value.add(simple_value=val_acc, tag="Validation-Accuracy")
+                top1_acc, top5_acc = self._eval_loop()
+                top1_summ = tf.summary.Summary()
+                top1_summ.value.add(simple_value=top1_acc, tag="Top-1 Accuracy")
+                top5_summ = tf.summary.Summary()
+                top5_summ.value.add(simple_value=top5_acc, tag="Top-5 Accuracy")
+                self.tb_writer.add_summary(top1_summ, self.epoch)
+                self.tb_writer.add_summary(top5_summ, self.epoch)
                 self.tb_writer.flush()
 
-                self.tb_writer.add_summary(acc_summ, self.epoch)
-                self.logger.info('Epoch[%d] Validation-Accuracy = %.2f%%', self.epoch, val_acc)
+                self.logger.info('Epoch[%d] Top-1 Accuracy = %.2f%%', self.epoch, top1_acc)
+                self.logger.info('Epoch[%d] Top-5 Accuracy = %.2f%%', self.epoch, top5_acc)
 
             # Close and terminate
             self.tb_writer.close()

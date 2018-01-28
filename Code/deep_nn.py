@@ -22,13 +22,11 @@ class DeepNN(object):
         self.dataset  = TFDatasetReader(image_size=args.input_size)
         self.module   = TFClassifier(args.model_name, args.data_format, self.logs_dir)
 
-    def train(self):
-        decay_steps = int((self.dataset.dataset_sz / self.flags.batch_size) * self.flags.lr_step)
-        
+    def train(self):        
         # Pack the hyper-parameters
         hp_dict = {'batch_size': self.flags.batch_size, 'optimizer': self.flags.optimizer,
                     'lr': self.flags.lr, 'wd': self.flags.wd, 'lr_decay': self.flags.lr_decay,
-                    'lr_decay_steps': decay_steps, 'data_aug': self.flags.data_aug}
+                    'lr_decay_epochs': self.flags.lr_step, 'data_aug': self.flags.data_aug}
         hp = utils.DictToAttrs(hp_dict)
         
         # Train the model
