@@ -125,10 +125,12 @@ class TFNet(object):
 
     def global_pool(self, data, pool_type='avg', name=None):
         """ """
+        shape = data.get_shape()
         if self.data_format.startswith('NC'):
-            net_out = tf.reduce_mean(data, axis=[2,3])
+            kernel = (shape[2], shape[3])
         else:
-            net_out = tf.reduce_mean(data, axis=[1,2])
+            kernel = (shape[1], shape[2])
+        net_out = self.pooling(data, 'avg', kernel)
         return net_out
 
     def flatten(self, data):

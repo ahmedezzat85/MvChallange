@@ -1,6 +1,7 @@
 """
 """
 import os
+import json
 from datetime import datetime
 
 import utils
@@ -18,7 +19,7 @@ class DeepNN(object):
     def __init__(self, args):
         self.flags    = args
         self.logs_dir = os.path.join(_LOGS_ROOT_DIR, args.model_name, args.log_subdir)
-        self.bin_dir  = os.path.join(_MODEL_BIN_DIR, args.model_name, args.log_subdir)
+        self.bin_dir  = os.path.join(_MODEL_BIN_DIR, args.model_name)
         self.dataset  = TFDatasetReader(image_size=args.input_size)
         self.module   = TFClassifier(args.model_name, args.data_format, self.logs_dir)
 
@@ -27,14 +28,20 @@ class DeepNN(object):
         hp_dict = {'batch_size': self.flags.batch_size, 'optimizer': self.flags.optimizer,
                     'lr': self.flags.lr, 'wd': self.flags.wd, 'lr_decay': self.flags.lr_decay,
                     'lr_decay_epochs': self.flags.lr_step, 'data_aug': self.flags.data_aug}
+        json.dumps(hp_dict, indent=True)
         hp = utils.DictToAttrs(hp_dict)
         
         # Train the model
         self.module.train(self.dataset, hp, self.flags.num_epoch, self.flags.begin_epoch)
 
+    def evaluate(self):
+        """ """
+        self.module.dataset = self.dataset
+        self.module.evaluate(self.flags.checkpoint)
+
     def deploy(self):
         """ """
-        self.module.deploy(self.bin_dir, self.flags.input_size, self.dataset.num_classes)
+        self.module.deploy(self.bin_dir, self.flags.input_size, self.dataset.num_classes, self.flags.checkpoint)
 
 def main():
     """ """
@@ -42,10 +49,9 @@ def main():
     cmd = args.subcmd.lower()
 
     dnn = DeepNN(args)
-    if cmd == 'train':
-        dnn.train()
-    elif cmd == 'deploy':
-        dnn.deploy()
+    if   cmd == 'train' : dnn.train()
+    elif cmd == 'deploy': dnn.deploy()
+    elif cmd == 'eval'  : dnn.evaluate()
     else:
         raise ValueError('Unknown sub-command %s', cmd)
 

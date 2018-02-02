@@ -2,14 +2,20 @@ from __future__ import absolute_import
 
 import os
 import sys
+import cv2
 from time import time
 from datetime import datetime
 from importlib import import_module
 
 import numpy as np
 import tensorflow as tf
+import pandas as pd
 
 import utils
+import mv_dataset
+from vgg_preprocessing import preprocess_for_eval
+
+_CSV_TEST_SET_FILE = os.path.join(mv_dataset.DATASET_DIR, 'eval_set.csv')
 
 class TFClassifier(object):
     """ Abtraction of TensorFlow functionality.
@@ -25,6 +31,7 @@ class TFClassifier(object):
         self.model_name   = model_name
         self.base_tick    = time()
         self.dtype        = tf.float32
+        self.training     = None
         self.tf_sess      = None
         self.eval_op      = None
         self.loss         = None
@@ -64,10 +71,10 @@ class TFClassifier(object):
         self.tb_writer.add_summary(s, begin_epoch)
         self.tb_writer.flush()
 
-    def _load_dataset(self, training=True):
+    def _load_dataset(self, batch_size, training=True):
         """ """
         with tf.device('/cpu:0'):
-            self.dataset.read(self.hp.batch_size, training, self.data_format, self.hp.data_aug, self.dtype)
+            self.dataset.read(batch_size, training, self.data_format, training, self.dtype)
     
     def _forward_prop(self, batch, num_classes, training=True):
         """ """
@@ -153,15 +160,16 @@ class TFClassifier(object):
         top1_acc = 0
         top5_acc = 0
         n = 0
+        feed_dict = None if self.training is None else {self.training: False}
         while True:
             try:
-                feed_dict = {self.training: False}
                 top1, top5 = self.tf_sess.run(self.eval_op, feed_dict)
                 top1_acc += top1
                 top5_acc += top5
                 n += 1
             except tf.errors.OutOfRangeError:
                 break
+
         top1_acc = (top1_acc * 100.0) / n
         top5_acc = (top5_acc * 100.0) / n
         self.logger.info('Validation Time = %.3f', self.tick() - epoch_start_time)
@@ -191,7 +199,7 @@ class TFClassifier(object):
 
         with tf.Graph().as_default():
             # Load the dataset
-            self._load_dataset()
+            self._load_dataset(self.hp.batch_size)
 
             # Forward Propagation
             self.training = tf.placeholder(tf.bool, name='Train_Flag')
@@ -242,56 +250,72 @@ class TFClassifier(object):
         self.logger.info("Training Finished at : " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         self.logger.info("Total Training Time  : " + str(datetime.now() - t_start))
 
-    def evaluate_model(self):
+    def evaluate(self, chkpt_id=None):
         """ """
+        self.logger = utils.create_logger(self.model_name, os.path.join(self.log_dir, 'Eval.log'))
         with tf.Graph().as_default():
             # Load the Evaluation Dataset
-            self._load_dataset(training=False)
+            self._load_dataset(1, training=False)
 
             # Forward Prop
-            self.training = tf.placeholder(tf.bool, name='Train_Flag')
             predictions, _ = self._forward_prop(self.dataset.images, self.dataset.num_classes, False)
 
             # Create a TF Session
             self.create_tf_session()
  
             # Load the saved model from a checkpoint
-            chkpt_state = tf.train.get_checkpoint_state(self.model_dir)
-            self.logger.info("Loading Checkpoint " + chkpt_state.model_checkpoint_path)
+            if chkpt_id is None:
+                chkpt_state = tf.train.get_checkpoint_state(self.model_dir)
+                chkpt = chkpt_state.model_checkpoint_path
+            else:
+                chkpt = self.chkpt_prfx + '-' + str(chkpt_id)
+
+            self.logger.info("Loading Checkpoint " + chkpt)
             tf_model = tf.train.Saver()
-            tf_model.restore(self.tf_sess, chkpt_state.model_checkpoint_path)
+            tf_model.restore(self.tf_sess, chkpt)
 
             # Perform Model Evaluation
             self._create_eval_op(predictions, self.dataset.labels)
-            acc = self._eval_loop()
+            top1_acc, top5_acc = self._eval_loop()
+            self.logger.info('Top-1 Accuracy = %.2f%%', top1_acc)
+            self.logger.info('Top-5 Accuracy = %.2f%%', top5_acc)
 
             self.tf_sess.close()
-        return acc
+        return top1_acc, top5_acc
 
-    def deploy(self, deploy_dir, img_size, num_classes, chkpt_id=0):
-        """ """
+    def deploy(self, deploy_dir, img_size, num_classes, chkpt_id=-1):
+        """ Save a model for Inference.
+
+        Parameters
+        ----------
+        deploy_dir: path
+        num_classes: int
+        chkpt_id: integer
+            ID for the checkpoint to load the model from.
+            * **"0"** means get the latest checkpoint
+            * **"-1"** means no checkpoint. The model weights are randomly initialized.
+              This is suitable for testing a model before training it. 
+        """
         utils.create_dir(deploy_dir)
         with tf.Graph().as_default():
-            if self.data_format.startswith('NC'):
-                in_shape = [1, 3, img_size, img_size]
-            else:
-                in_shape = [1, img_size, img_size, 3]
-
+            in_shape = [1, 3, img_size, img_size] if self.data_format == 'NCHW' else [1, img_size, img_size, 3]
             input_image = tf.placeholder(self.dtype, in_shape, name='input')
-            logits, predictions = self._forward_prop(input_image, num_classes, training=False)
+            _, predictions = self._forward_prop(input_image, num_classes, training=False)
             out = tf.identity(predictions, 'output')
 
             saver = tf.train.Saver()
             self.create_tf_session()
             self.tb_writer  = tf.summary.FileWriter(deploy_dir, graph=self.tf_sess.graph)
-            if chkpt_id == 0:
-                chkpt_state = tf.train.get_checkpoint_state(self.chkpt_dir)
-                chkpt = chkpt_state.model_checkpoint_path
+            if chkpt_id >= 0:
+                if chkpt_id == 0:
+                    chkpt_state = tf.train.get_checkpoint_state(self.chkpt_dir)
+                    chkpt = chkpt_state.model_checkpoint_path
+                else:
+                    chkpt = self.chkpt_prfx + '-' + str(chkpt_id)
+                saver.restore(self.tf_sess, chkpt)
             else:
-                chkpt = self.chkpt_prfx + '-' + str(chkpt_id)
-            saver.restore(self.tf_sess, chkpt)
+                self.tf_sess.run(predictions, {input_image: np.random.rand(*in_shape)})
             saver.save(self.tf_sess, os.path.join(deploy_dir, self.model_name))
-
             tf.train.write_graph(self.tf_sess.graph_def, deploy_dir, self.model_name+'.pb', False)
             tf.train.write_graph(self.tf_sess.graph_def, deploy_dir, self.model_name+'.pbtxt')
 

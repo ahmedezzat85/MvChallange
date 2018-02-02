@@ -314,7 +314,7 @@ def preprocess_for_train(image,
   return _mean_image_subtraction(image, [_R_MEAN, _G_MEAN, _B_MEAN])
 
 
-def preprocess_for_eval(image, output_height, output_width, resize_side):
+def preprocess_for_eval(image, output_height, output_width, resize_side, keep_aspect_ratio=True):
   """Preprocesses the given image for evaluation.
 
   Args:
@@ -326,8 +326,11 @@ def preprocess_for_eval(image, output_height, output_width, resize_side):
   Returns:
     A preprocessed image.
   """
-  image = _aspect_preserving_resize(image, resize_side)
-  image = _central_crop([image], output_height, output_width)[0]
+  if keep_aspect_ratio == True:
+    image = _aspect_preserving_resize(image, resize_side)
+    image = _central_crop([image], output_height, output_width)[0]
+  else:
+    image = tf.image.resize_images(image, (output_height, output_width))
   image.set_shape([output_height, output_width, 3])
   image = tf.to_float(image)
   return _mean_image_subtraction(image, [_R_MEAN, _G_MEAN, _B_MEAN])

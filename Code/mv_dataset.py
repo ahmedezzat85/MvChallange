@@ -10,7 +10,7 @@ from datetime import datetime
 
 import numpy as np 
 import tensorflow as tf
-from pandas import read_csv
+import pandas as pd
 
 import utils
 from vgg_preprocessing import preprocess_image
@@ -96,7 +96,7 @@ class TFDatasetWriter(object):
     def _split_train_eval(self):
         """ """
         index_file = os.path.join(DATASET_DIR, 'training_ground_truth.csv')
-        data = read_csv(index_file, sep=',')
+        data = pd.read_csv(index_file, sep=',')
         image_files = data['IMAGE_NAME']
         labels      = data['CLASS_INDEX']
 
@@ -106,8 +106,10 @@ class TFDatasetWriter(object):
         np.random.shuffle(index)
 
         # Split training set into train/val
-        self.train_set = []
-        self.eval_set  = []
+        self.train_set  = []
+        self.eval_set   = []
+        eval_set_labels = []
+        eval_set_images = []  
         counters  = np.zeros([_NUM_CLASSES, 1])
         for i in index:
             label = labels[i] - 1 # Labels are from 1-200, convert to 0-199
@@ -116,7 +118,15 @@ class TFDatasetWriter(object):
                 self.train_set.append((file, label))
                 counters[label] += 1
             else:
+                eval_set_labels.append(label + 1)
+                eval_set_images.append(file)
                 self.eval_set.append((file, label))
+
+        eval_set_dict = {'IMAGE_NAME' : np.array(eval_set_images), 
+                         'CLASS_INDEX': np.array(eval_set_labels)}
+        df = pd.DataFrame(eval_set_dict)
+        df.to_csv(os.path.join(DATASET_DIR, 'eval_set.csv'), index=False, 
+                    columns=['IMAGE_NAME', 'CLASS_INDEX'])
 
     def write(self):
         def create_tf_record(rec_file, image_list):
@@ -216,11 +226,13 @@ class TFDatasetReader(object):
         if data_format.startswith('NC'):
             self.images = tf.transpose(self.images, [0, 3, 1, 2])
 
+
 def main():
     """ """
     parser = argparse.ArgumentParser('IntelMovidius Dataset Processing Module')
     parser.add_argument('-w', '--writer', action='store_true', help='Dataset Writer Mode. Save the raw image\
                                                                     dataset into tfrecord files')
+    parser.add_argument('-s', '--split', action='store_true')
     parser.add_argument('-r', '--reader', action='store_true', help='Dataset Reader Mode. Parse tfreord files')
     parser.add_argument('-n', '--num-files', type=int, default=5, help='Number of TFRECORD files for training dataset')
     parser.add_argument('-j', '--jpg', action='store_true', help='JPEG Test.')
@@ -235,13 +247,17 @@ def main():
         print ('Dataset Writer ...')
         writer = TFDatasetWriter(args.num_files)
         writer.write()
+    elif args.split is True:
+        print ('Split Only')
+        writer = TFDatasetWriter()
+        writer._split_train_eval()
     elif args.reader is True:
         print ('Reader Test ....')
         reader = TFDatasetReader(image_size=192, shuffle_buff_sz=2000)
         reader.read(128, True, 'NCHW', True)
         with tf.Session() as sess:
             t_start = datetime.now()
-            sess.run(reader.train_init_op)
+            sess.run(reader.eval_init_op)
             i = 0
             while True:
                 try:
@@ -250,7 +266,8 @@ def main():
                     i += 1
                 except tf.errors.OutOfRangeError:
                     break
-            print ('Time for training set: ', datetime.now() - t_start)
+            print (images[0])
+            print ('Time for eval set: ', datetime.now() - t_start)
             t_start = datetime.now()
             
     elif args.jpg is True:
