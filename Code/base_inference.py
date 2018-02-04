@@ -86,7 +86,7 @@ class BaseInference(object):
         df = pd.read_csv(self.csv_data_file, sep=',')
         images = df['IMAGE_NAME']
         if self.score_flag is True: labels = df['CLASS_INDEX']
-        score = InferenceScore(len(images))
+        score = InferenceScore()
 
         for i, image in enumerate(images):
             # Read and decode image
@@ -132,8 +132,8 @@ class BaseInference(object):
 class InferenceScore(object):
     """
     """
-    def __init__(self, n_images):
-        self.probs        = np.zeros(n_images, np.float)
+    def __init__(self):
+        self.probs        = []
         self.count        = 0
         self.min_prob     = np.float(1e-15)
         self.max_prob     = 1.0 - self.min_prob
@@ -144,13 +144,15 @@ class InferenceScore(object):
     def update(self, cls_id, cls_prob, top5_classes, top5_probs, infer_time):
         """ """
         prob = 0
+        print (cls_id, cls_prob)
+        print (top5_classes, top5_probs)
         self.image_time += infer_time
         if cls_id == top5_classes[0]: self.top1_acc += 1
         if cls_id in top5_classes: 
             self.top5_acc += 1
             prob = cls_prob / np.sum(top5_probs)
         prob = max(self.min_prob, min(self.max_prob, prob))
-        self.probs[self.count] = prob
+        self.probs.append(prob)
 
         self.count += 1
         if self.count % 100 == 0:
@@ -159,7 +161,8 @@ class InferenceScore(object):
 
     def finish(self, mult=100, n_classes=200, log_loss_max=7.0, time_limit=1000.0):
         """ """
-        log_loss = np.mean(-np.log(self.probs))
+        probs = np.array(self.probs)
+        log_loss = np.mean(-np.log(probs))
         self.image_time /= self.count
         t = mult * self.image_time
         if self.image_time > time_limit or log_loss > log_loss_max:

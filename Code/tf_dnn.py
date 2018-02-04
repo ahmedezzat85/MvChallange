@@ -33,7 +33,7 @@ class TFClassifier(object):
         self.dtype        = tf.float32
         self.training     = None
         self.tf_sess      = None
-        self.eval_op      = None
+        self.accuracy_op  = None
         self.loss         = None
         self.train_op     = None
         self.summary_op   = None
@@ -116,15 +116,15 @@ class TFClassifier(object):
         with tf.control_dependencies(update_ops):
             self.train_op = opt.minimize(self.loss, self.global_step)
 
-        self._create_eval_op(logits, self.dataset.labels)
+        self._create_accuracy_op(logits, self.dataset.labels)
 
-    def _create_eval_op(self, predictions, labels):
+    def _create_accuracy_op(self, predictions, labels):
         """ """
         top1_tensor  = tf.equal(tf.argmax(predictions, axis=1), tf.argmax(labels, axis=1))
         top1_op      = tf.reduce_mean(tf.cast(top1_tensor, tf.float32))
         top5_tensor  = tf.nn.in_top_k(predictions, tf.argmax(labels, axis=1), 5)
-        top5_op     = tf.reduce_mean(tf.cast(top5_tensor, tf.float32))
-        self.eval_op = [top1_op, top5_op]
+        top5_op      = tf.reduce_mean(tf.cast(top5_tensor, tf.float32))
+        self.accuracy_op = [top1_op, top5_op]
 
     def _train_loop(self):
         """ """
@@ -134,11 +134,19 @@ class TFClassifier(object):
         epoch_start_time = self.tick()
         last_log_tick    = epoch_start_time
         last_step        = self.tf_sess.run(self.global_step)
+        top1_acc = 0
+        top5_acc = 0
+        n = 0
         while True:
             try:
                 feed_dict = {self.training: True}
                 fetches   = [self.loss, self.train_op, self.summary_op, self.global_step]
                 loss, _, s, step = self.tf_sess.run(fetches, feed_dict)
+                top1, top5 = self.tf_sess.run(self.accuracy_op, feed_dict)
+                top1_acc += top1
+                top5_acc += top5
+                n += 1
+
                 self.tb_writer.add_summary(s, step)
                 self.tb_writer.flush()
                 elapsed = self.tick() - last_log_tick
@@ -152,6 +160,9 @@ class TFClassifier(object):
                 break
         self.logger.info('Epoch Training Time = %.3f', self.tick() - epoch_start_time)
         self.saver.save(self.tf_sess, self.chkpt_prfx, self.epoch + 1)
+        top1_acc = (top1_acc * 100.0) / n
+        top5_acc = (top5_acc * 100.0) / n
+        return top1_acc, top5_acc
 
     def _eval_loop(self):
         """ """
@@ -163,7 +174,7 @@ class TFClassifier(object):
         feed_dict = None if self.training is None else {self.training: False}
         while True:
             try:
-                top1, top5 = self.tf_sess.run(self.eval_op, feed_dict)
+                top1, top5 = self.tf_sess.run(self.accuracy_op, feed_dict)
                 top1_acc += top1
                 top5_acc += top5
                 n += 1
@@ -174,6 +185,15 @@ class TFClassifier(object):
         top5_acc = (top5_acc * 100.0) / n
         self.logger.info('Validation Time = %.3f', self.tick() - epoch_start_time)
         return top1_acc, top5_acc
+
+    def _log_accuracy(self, tag, top1_acc, top5_acc):
+        top1_summ = tf.summary.Summary()
+        top1_summ.value.add(simple_value=top1_acc, tag='Top-1 Acc' +'('+tag+')')
+        top5_summ = tf.summary.Summary()
+        top5_summ.value.add(simple_value=top5_acc, tag='Top-5 Acc' +'('+tag+')')
+        self.tb_writer.add_summary(top1_summ, self.epoch)
+        self.tb_writer.add_summary(top5_summ, self.epoch)
+        self.tb_writer.flush()
 
     def create_tf_session(self):
         """ """
@@ -229,19 +249,16 @@ class TFClassifier(object):
             # Training Loop
             for self.epoch in range(begin_epoch, num_epoch):
                 # Training
-                self._train_loop()
+                top1_acc, top5_acc = self._train_loop()
+                self._log_accuracy('Training', top1_acc, top5_acc)
+                self.logger.info('Epoch[%d] Top-1 Train Acc = %.2f%%', self.epoch, top1_acc)
+                self.logger.info('Epoch[%d] Top-5 Train Acc = %.2f%%', self.epoch, top5_acc)
+
                 # Validation
                 top1_acc, top5_acc = self._eval_loop()
-                top1_summ = tf.summary.Summary()
-                top1_summ.value.add(simple_value=top1_acc, tag="Top-1 Accuracy")
-                top5_summ = tf.summary.Summary()
-                top5_summ.value.add(simple_value=top5_acc, tag="Top-5 Accuracy")
-                self.tb_writer.add_summary(top1_summ, self.epoch)
-                self.tb_writer.add_summary(top5_summ, self.epoch)
-                self.tb_writer.flush()
-
-                self.logger.info('Epoch[%d] Top-1 Accuracy = %.2f%%', self.epoch, top1_acc)
-                self.logger.info('Epoch[%d] Top-5 Accuracy = %.2f%%', self.epoch, top5_acc)
+                self._log_accuracy('Validation', top1_acc, top5_acc)
+                self.logger.info('Epoch[%d] Top-1 Val Acc = %.2f%%', self.epoch, top1_acc)
+                self.logger.info('Epoch[%d] Top-5 Val Acc = %.2f%%', self.epoch, top5_acc)
 
             # Close and terminate
             self.tb_writer.close()
@@ -303,7 +320,6 @@ class TFClassifier(object):
             _, predictions = self._forward_prop(input_image, num_classes, training=False)
             out = tf.identity(predictions, 'output')
 
-            saver = tf.train.Saver()
             self.create_tf_session()
             self.tb_writer  = tf.summary.FileWriter(deploy_dir, graph=self.tf_sess.graph)
             if chkpt_id >= 0:
@@ -312,10 +328,12 @@ class TFClassifier(object):
                     chkpt = chkpt_state.model_checkpoint_path
                 else:
                     chkpt = self.chkpt_prfx + '-' + str(chkpt_id)
-                saver.restore(self.tf_sess, chkpt)
-            else:
-                self.tf_sess.run(predictions, {input_image: np.random.rand(*in_shape)})
-            saver.save(self.tf_sess, os.path.join(deploy_dir, self.model_name))
+                loader = tf.train.Saver()
+                loader.restore(self.tf_sess, chkpt)
+            self.tf_sess.run(predictions, {input_image: np.random.rand(*in_shape)})
+
+            saver = tf.train.Saver(tf.global_variables())
+            saver.save(self.tf_sess, os.path.join(deploy_dir, 'network'))
             tf.train.write_graph(self.tf_sess.graph_def, deploy_dir, self.model_name+'.pb', False)
             tf.train.write_graph(self.tf_sess.graph_def, deploy_dir, self.model_name+'.pbtxt')
 
