@@ -32,6 +32,9 @@ def parse_cmd_line_options():
     deploy_parser = subparsers.add_parser('deploy', parents=[base_parser], help='Import a pretrained model for inference.')
     deploy_parser.add_argument('--checkpoint', type=int, help='Checkpoint ID', default=0)
 
+    eval_parser = subparsers.add_parser('eval', parents=[base_parser], help='Import a pretrained model for inference.')
+    eval_parser.add_argument('--checkpoint', type=int, help='Checkpoint ID', default=0)
+
     train_parser.set_defaults(
         lr          = 1e-3,
         wd          = 0,
