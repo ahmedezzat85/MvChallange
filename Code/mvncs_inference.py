@@ -1,4 +1,6 @@
 import os
+import argparse
+
 import cv2
 import numpy as np
 import pandas as pd
@@ -8,10 +10,15 @@ from mvnc import mvncapi as mvnc
 ##=======##=======##=======##=======##
 # GLOBAL VARIABLES & CONSTANTS
 ##=======##=======##=======##=======##
-_DATA_ROOT_DIR = 'data'
-_DATA_FILES = {
-    'eval': 'eval_set.csv', 
-    'prov': 'provisional.csv'}
+_DATA_ROOT_DIR = os.path.join(os.path.dirname(__file__), '..', 'dataset')
+_DATASETS = {
+    'eval': {'data_csv': 'eval_set.csv'   , 
+             'data_dir': 'training'
+            },
+    'prov': {'data_csv': 'provisional.csv', 
+             'data_dir': 'provisional'
+            }
+}
 
 _R_MEAN = 123.68
 _G_MEAN = 116.78
@@ -68,21 +75,25 @@ class MvNCSInference(object):
     """
     """
     def __init__(self, 
-                 dataset_type='prov',
+                 dataset_key='prov',
+                 inference_file='inferences.csv',
                  score_inference=False,
                  model='compiled.graph',
                  input_size=224,
                  preserve_aspect=True):
         
-        if dataset_type not in _DATA_FILES:
+        if dataset_key not in _DATASETS:
             raise ValueError('Unknown dataset %s', dataset_type)
+        
+        dataset = _DATASETS[dataset_key]
 
         self.summary         = []
         self.img_size        = input_size
-        self.images_dir      = os.path.join(_DATA_ROOT_DIR, dataset_type)
+        self.images_dir      = os.path.join(_DATA_ROOT_DIR, dataset['data_dir'])
         self.score_flag      = score_inference
         self.resize_side     = 256
-        self.csv_data_file   = os.path.join(_DATA_ROOT_DIR, _DATA_FILES[dataset_type])
+        self.out_csv_file    = inference_file
+        self.csv_data_file   = os.path.join(_DATA_ROOT_DIR, dataset['data_csv'])
         self.preserve_aspect = preserve_aspect
 
         self.mvncs = MvNCS()
@@ -146,22 +157,30 @@ class MvNCSInference(object):
             # Format Message
             row = (image, )
             for cls_id, prob in zip(top5_classes, top5_probs): row += (cls_id, prob, )
-            row += (infer_time)
+            row += (infer_time,)
             self.summary.append(row)
 
             if self.score_flag is True:
                 cls_id = labels[i]
                 score.update(cls_id, probs[cls_id - 1], top5_classes, top5_probs, infer_time)
         
+            if i == 500:
+                break
+
+        # Write Inferences to CSV file
         header = ['IMAGE_NAME']
         for i in range(1,6): header += ['LABEL_INDEX #{:d}'.format(i), 'PROBABILITY #{:d}'.format(i)]
         header += ['INFERENCE_TIME']
         df = pd.DataFrame(self.summary, columns=header)
+        df.to_csv(self.out_csv_file, index=False)
+        
+        # Dump Score
         if self.score_flag is True:
             score.finish()
 
-    def close():
+    def close(self):
         self.mvncs.close()
+
 
 class InferenceScore(object):
     """
@@ -170,7 +189,7 @@ class InferenceScore(object):
         self.probs        = np.zeros(n_images)
         self.count        = 0
         self.min_prob     = np.float(1e-15)
-        self.max_prob     = 1.0 - self.min_proba
+        self.max_prob     = 1.0 - self.min_prob
         self.top1_acc     = 0
         self.top5_acc     = 0
         self.image_time   = 0
@@ -192,9 +211,8 @@ class InferenceScore(object):
 
     def finish(self, mult=100, n_classes=200, log_loss_max=7.0, time_limit=1000.0):
         """ """
+        print (np.sum(self.probs), len(self.probs), self.count)
         log_loss = np.mean(-np.log(self.probs))
-        self.top1_acc /= self.count
-        self.top5_acc /= self.count
         self.image_time /= self.count
         t = mult * self.image_time
         if self.image_time > time_limit or log_loss > log_loss_max:
@@ -205,13 +223,17 @@ class InferenceScore(object):
 
         print ('TOP-1 Accuracy  = ', self.top1_acc, self.top1_acc * 100 / self.count)
         print ('TOP-5 Accuracy  = ', self.top5_acc, self.top5_acc * 100 / self.count)
-        print ('Inference Time  = ', self.image_time / self.count)
+        print ('Inference Time  = ', self.image_time)
         print ('Log Loss        = %.9f' % log_loss)
-        print ('Image Time      = %.9f' % image_time)
         print ('Inference Score = %.2f' % score)
         return score
 
 if __name__ == '__main__':
-    infer = TensorflowInference('mobilenet')
-    infer.run()
+    parser = argparse.ArgumentParser('MvNCS Inference Script')
+    parser.add_argument('-d', '--dataset', type=str)
+    parser.add_argument('-s', '--score'  , action='store_true')
+    args = parser.parse_args()
+
+    infer = MvNCSInference(dataset_key=args.dataset, score_inference=args.score)
+    infer()
     infer.close()
