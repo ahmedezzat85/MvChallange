@@ -138,9 +138,8 @@ class TFClassifier(object):
         while True:
             try:
                 feed_dict = {self.training: True}
-                fetches   = [self.loss, self.train_op, self.summary_op, self.global_step]
-                loss, _, s, step = self.tf_sess.run(fetches, feed_dict)
-                top1, top5 = self.tf_sess.run(self.accuracy_op, {self.training: False})
+                fetches   = [self.loss, self.train_op, self.accuracy_op, self.summary_op, self.global_step]
+                loss, _, top1, top5, s, step = self.tf_sess.run(fetches, feed_dict)
                 self._log_accuracy('Training', top1 * 100.0, top5 * 100.0, step)
                 top1_acc += top1
                 top5_acc += top5
@@ -183,7 +182,7 @@ class TFClassifier(object):
 
         top1_acc = (top1_acc * 100.0) / n
         top5_acc = (top5_acc * 100.0) / n
-        self.logger.info('Validation Time = %.3f', self.tick() - epoch_start_time)
+        self.logger.info('Validation Time = %.3f, n = ', self.tick() - epoch_start_time, n)
         return top1_acc, top5_acc
 
     def _log_accuracy(self, tag, top1_acc, top5_acc, step):
