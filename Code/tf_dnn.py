@@ -114,14 +114,16 @@ class TFClassifier(object):
         update_ops  = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
             self.train_op = opt.minimize(self.loss, self.global_step)
-            self._create_accuracy_op(predictions, self.dataset.labels)
+        self._create_accuracy_op(predictions, self.dataset.labels)
 
     def _create_accuracy_op(self, predictions, labels):
         """ """
         top1_tensor  = tf.equal(tf.argmax(predictions, axis=1), tf.argmax(labels, axis=1))
-        top1_op      = tf.reduce_mean(tf.cast(top1_tensor, tf.float32))
         top5_tensor  = tf.nn.in_top_k(predictions, tf.argmax(labels, axis=1), 5)
-        top5_op      = tf.reduce_mean(tf.cast(top5_tensor, tf.float32))
+        top1_op      = tf.multiply(tf.reduce_mean(tf.cast(top1_tensor, tf.float32)), 100.0)
+        top5_op      = tf.multiply(tf.reduce_mean(tf.cast(top5_tensor, tf.float32)), 100.0)
+        self.summary_list.append(tf.summary.scalar("Top-1 Train Acc", top1_op))
+        self.summary_list.append(tf.summary.scalar("Top-5 Train Acc", top5_op))
         self.accuracy_op = [top1_op, top5_op]
 
     def _train_loop(self):
@@ -140,7 +142,6 @@ class TFClassifier(object):
                 feed_dict = {self.training: True}
                 fetches   = [self.loss, self.train_op, self.accuracy_op, self.summary_op, self.global_step]
                 loss, _, top1, top5, s, step = self.tf_sess.run(fetches, feed_dict)
-                self._log_accuracy('Training', top1 * 100.0, top5 * 100.0, step)
                 top1_acc += top1
                 top5_acc += top5
                 n += 1
