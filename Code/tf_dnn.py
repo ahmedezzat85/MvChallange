@@ -85,7 +85,7 @@ class TFClassifier(object):
         self.summary_list.append(tf.summary.scalar("Loss", cross_entropy))
         return cross_entropy
 
-    def _create_train_op(self, logits):
+    def _create_train_op(self, logits, predictions):
         """ """
         self.global_step = tf.train.get_or_create_global_step()
         # Get the optimizer
@@ -114,8 +114,7 @@ class TFClassifier(object):
         update_ops  = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
             self.train_op = opt.minimize(self.loss, self.global_step)
-
-        self._create_accuracy_op(logits, self.dataset.labels)
+            self._create_accuracy_op(predictions, self.dataset.labels)
 
     def _create_accuracy_op(self, predictions, labels):
         """ """
@@ -224,9 +223,9 @@ class TFClassifier(object):
 
             # Forward Propagation
             self.training = tf.placeholder(tf.bool, name='Train_Flag')
-            logits, _ = self._forward_prop(self.dataset.images, self.dataset.num_classes, self.training)
+            logits, probs = self._forward_prop(self.dataset.images, self.dataset.num_classes, self.training)
         
-            self._create_train_op(logits)
+            self._create_train_op(logits, probs)
 
             # Create a TF Session
             self.create_tf_session()
