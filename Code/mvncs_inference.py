@@ -46,7 +46,8 @@ class MvNCSInference(BaseInference):
         self.ncs_graph = self.dev.AllocateGraph(blob)
         self.ncs_graph.SetGraphOption(mvnc.GraphOption.ITERATIONS, 1)
 
-    def forward(self, input_tensor):
+    def forward(self, image):
+        input_tensor = image.astype(np.float16)
         self.ncs_graph.LoadTensor(input_tensor, None)
         net_out, _ = self.ncs_graph.GetResult()
         ncs_time = np.sum(self.ncs_graph.GetGraphOption(mvnc.GraphOption.TIME_TAKEN)) 

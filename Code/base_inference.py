@@ -2,25 +2,26 @@ import os
 import cv2
 import numpy as np
 import pandas as pd
+from image_preprocessing import preprocess_image
 
 ##=======##=======##=======##=======##
 # GLOBAL VARIABLES & CONSTANTS
 ##=======##=======##=======##=======##
 _DATA_ROOT_DIR = os.path.join(os.path.dirname(__file__), '..', 'dataset')
 _DATASETS = {
-    'eval': {'data_csv': 'eval_set.csv'   , 
-             'data_dir': 'training'
-            },
-    'prov': {'data_csv': 'provisional.csv', 
-             'data_dir': 'provisional'
-            }
+    'example': {
+        'data_csv': 'example_set.csv',
+        'data_dir': 'training'
+    },
+    'eval': {
+        'data_csv': 'eval_set.csv', 
+        'data_dir': 'training'
+    },
+    'prov': {
+        'data_csv': 'provisional.csv', 
+        'data_dir': 'provisional'
+    }
 }
-
-_R_MEAN = 123.68
-_G_MEAN = 116.78
-_B_MEAN = 103.94
-_RGB_MEAN = np.array([_R_MEAN, _G_MEAN, _B_MEAN]) / 255
-
 
 class BaseInference(object):
     """
@@ -46,38 +47,9 @@ class BaseInference(object):
         self.csv_data_file   = os.path.join(_DATA_ROOT_DIR, dataset['data_csv'])
         self.preserve_aspect = preserve_aspect
 
-    def _resize_keep_aspect(self, image):
-        """ Perform Resize for the input image while preserving 
-        the aspect ratio. The short edge of the image is set to 
-        be equal to r'self.rescale_size' and the other dimension
-        is scaled accordingly to keep the aspect ratio as is.  
-        """
-        # Resize
-        h, w, _ = image.shape
-        scale = self.resize_side / min(h, w)
-        h = int(h * scale)
-        w = int(w * scale)
-        image = cv2.resize(image, (w, h))
-        
-        # Center Crop to the target size 
-        hs = (h - self.img_size) // 2
-        ws = (w - self.img_size) // 2
-        image = image[hs:hs+self.img_size, ws:ws+self.img_size]
-        return image
-
     def _preprocess(self, image):
         """ """
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image = image.astype(np.float32)
-        image = image / 255
-
-        if self.preserve_aspect is True:
-            image = self._resize_keep_aspect(image)
-        else:
-            image = cv2.resize(image, (self.img_size, self.img_size))
-
-        image = image - _RGB_MEAN
-        return np.expand_dims(image, 0)
+        return preprocess_image(image, self.resize_side, self.img_size, self.preserve_aspect)
     
     def forward(self, image):
         raise NotImplementedError()
@@ -144,8 +116,6 @@ class InferenceScore(object):
     def update(self, cls_id, cls_prob, top5_classes, top5_probs, infer_time):
         """ """
         prob = 0
-        print (cls_id, cls_prob)
-        print (top5_classes, top5_probs)
         self.image_time += infer_time
         if cls_id == top5_classes[0]: self.top1_acc += 1
         if cls_id in top5_classes: 
