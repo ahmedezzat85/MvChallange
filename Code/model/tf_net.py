@@ -17,6 +17,7 @@ class TFNet(object):
         self.data_format = data_format
         self.trainable   = True
         self.train       = train
+        self.dw_alpa     = 1.0
         self.kernel_init = tf.glorot_uniform_initializer()
         #tf.variance_scaling_initializer(2.0, 'fan_in', 'uniform', dtype=data_type)
         if data_format.startswith("NC"):
@@ -105,6 +106,7 @@ class TFNet(object):
 
         # PointWise Convolution
         if num_filters is not None:
+            num_filters = max(num_filters * self.dw_alpa, 8)
             net_out = self.convolution(net_out, num_filters, (1,1), (1,1), 'same', act_fn,
                                             add_bn, name=name)
         return net_out

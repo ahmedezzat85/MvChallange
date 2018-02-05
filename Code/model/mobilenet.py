@@ -9,7 +9,8 @@ class MobileNet(TFNet):
     def __init__(self, data, data_format, num_classes, is_train=True):
         dtype = data.dtype.base_dtype
         super(MobileNet, self).__init__(dtype, data_format, train=is_train)
-        self.net_out = tf.identity(data, name='data')
+        self.dw_alpa = 0.75
+        self.net_out = data
         self.num_classes = num_classes
 
     def __call__(self, alpha=1.0):
