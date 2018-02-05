@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import tensorflow as tf
 from tensorflow.contrib.layers import separable_conv2d
 
-TF_ACT_FN = {'relu': tf.nn.relu, 'leaky': tf.nn.leaky_relu}
+TF_ACT_FN = {'relu': tf.nn.relu, 'leaky': tf.nn.leaky_relu, 'relu6': tf.nn.relu6}
 
 class TFNet(object):
     """
@@ -17,8 +17,6 @@ class TFNet(object):
         self.data_format = data_format
         self.trainable   = True
         self.train       = train
-        self.bn_eps      = 1e-5
-        self.bn_decay    = 0.997
         self.kernel_init = tf.glorot_uniform_initializer()
         #tf.variance_scaling_initializer(2.0, 'fan_in', 'uniform', dtype=data_type)
         if data_format.startswith("NC"):
@@ -31,7 +29,6 @@ class TFNet(object):
         # Batch Normalization Layer
         bn_axis = 1 if self.data_format.startswith('NC') else -1
         net_out = tf.layers.batch_normalization(inputs=data, axis=bn_axis, training=self.train,
-                                                epsilon=self.bn_eps, momentum=self.bn_decay, scale=False,
                                                 trainable=self.trainable, fused=True, name=name)
         # Activation
         if act_fn in TF_ACT_FN:

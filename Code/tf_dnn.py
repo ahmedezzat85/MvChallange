@@ -22,9 +22,8 @@ class TFClassifier(object):
     """
     def __init__(self, model_name, data_format='NHWC', logs_dir=None):
 
-        # Disable Tensorflow logs except for errors
-        tf.logging.set_verbosity(tf.logging.ERROR)
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+        # Display Tensorflow Version
+        print ('Tensorflow Version:   ', tf.__version__)
 
         # Parameter initializations
         self.logger       = None
@@ -103,7 +102,7 @@ class TFClassifier(object):
         elif optmz == 'adam':
             opt = tf.train.AdamOptimizer(lr)
         elif optmz == 'rmsprop':
-            opt = tf.train.RMSPropOptimizer(lr)
+            opt = tf.train.RMSPropOptimizer(lr, momentum=0.9, epsilon=1)
  
         # Compute the loss and the train_op
         self.loss = self.loss_fn(logits)
@@ -142,7 +141,8 @@ class TFClassifier(object):
                 feed_dict = {self.training: True}
                 fetches   = [self.loss, self.train_op, self.summary_op, self.global_step]
                 loss, _, s, step = self.tf_sess.run(fetches, feed_dict)
-                top1, top5 = self.tf_sess.run(self.accuracy_op, feed_dict)
+                top1, top5 = self.tf_sess.run(self.accuracy_op, {self.training: False})
+                self._log_accuracy('Training', top1 * 100.0, top5 * 100.0, step)
                 top1_acc += top1
                 top5_acc += top5
                 n += 1
@@ -158,11 +158,12 @@ class TFClassifier(object):
                                       self.tick(), self.epoch, step, loss, speed)
             except tf.errors.OutOfRangeError:
                 break
-        self.logger.info('Epoch Training Time = %.3f', self.tick() - epoch_start_time)
         self.saver.save(self.tf_sess, self.chkpt_prfx, self.epoch + 1)
+        self.logger.info('Epoch Training Time = %.3f, n = %d', self.tick() - epoch_start_time, n)
         top1_acc = (top1_acc * 100.0) / n
         top5_acc = (top5_acc * 100.0) / n
-        return top1_acc, top5_acc
+        self.logger.info('Epoch[%d] Top-1 Train Acc = %.2f%%', self.epoch, top1_acc)
+        self.logger.info('Epoch[%d] Top-5 Train Acc = %.2f%%', self.epoch, top5_acc)
 
     def _eval_loop(self):
         """ """
@@ -186,13 +187,13 @@ class TFClassifier(object):
         self.logger.info('Validation Time = %.3f', self.tick() - epoch_start_time)
         return top1_acc, top5_acc
 
-    def _log_accuracy(self, tag, top1_acc, top5_acc):
+    def _log_accuracy(self, tag, top1_acc, top5_acc, step):
         top1_summ = tf.summary.Summary()
         top1_summ.value.add(simple_value=top1_acc, tag='Top-1 Acc' +'('+tag+')')
         top5_summ = tf.summary.Summary()
         top5_summ.value.add(simple_value=top5_acc, tag='Top-5 Acc' +'('+tag+')')
-        self.tb_writer.add_summary(top1_summ, self.epoch)
-        self.tb_writer.add_summary(top5_summ, self.epoch)
+        self.tb_writer.add_summary(top1_summ, step)
+        self.tb_writer.add_summary(top5_summ, step)
         self.tb_writer.flush()
 
     def create_tf_session(self):
@@ -249,14 +250,11 @@ class TFClassifier(object):
             # Training Loop
             for self.epoch in range(begin_epoch, num_epoch):
                 # Training
-                top1_acc, top5_acc = self._train_loop()
-                self._log_accuracy('Training', top1_acc, top5_acc)
-                self.logger.info('Epoch[%d] Top-1 Train Acc = %.2f%%', self.epoch, top1_acc)
-                self.logger.info('Epoch[%d] Top-5 Train Acc = %.2f%%', self.epoch, top5_acc)
+                self._train_loop()
 
                 # Validation
                 top1_acc, top5_acc = self._eval_loop()
-                self._log_accuracy('Validation', top1_acc, top5_acc)
+                self._log_accuracy('Validation', top1_acc, top5_acc, self.epoch)
                 self.logger.info('Epoch[%d] Top-1 Val Acc = %.2f%%', self.epoch, top1_acc)
                 self.logger.info('Epoch[%d] Top-5 Val Acc = %.2f%%', self.epoch, top5_acc)
 
