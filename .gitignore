@@ -51,6 +51,8 @@ __pycache__
 # OSX dir files
 .DS_Store
 
+submission
+submission_*
 corrupted_images
 train_patch
 log
