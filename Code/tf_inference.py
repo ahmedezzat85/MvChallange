@@ -41,7 +41,7 @@ class TensorflowInference(BaseInference):
             self.tf_sess = tf.Session()
 
             # Load the saved model from a checkpoint
-            chkpt = os.path.join(_MODEL_BIN_DIR, model, model)
+            chkpt = os.path.join(_MODEL_BIN_DIR, model, 'network')
             saver.restore(self.tf_sess, chkpt)
 
     def forward(self, image):
