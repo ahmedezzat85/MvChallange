@@ -311,6 +311,8 @@ def preprocess_for_train(image,
   image.set_shape([output_height, output_width, 3])
   image = tf.to_float(image)
   image = tf.image.random_flip_left_right(image)
+  image = tf.image.random_brightness(image, 0.5)
+  image = tf.image.random_flip_up_down(image)
   return _mean_image_subtraction(image, [_R_MEAN, _G_MEAN, _B_MEAN])
 
 

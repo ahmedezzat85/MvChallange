@@ -141,7 +141,7 @@ class TFClassifier(object):
             try:
                 feed_dict = {self.training: True}
                 fetches   = [self.loss, self.train_op, self.accuracy_op, self.summary_op, self.global_step]
-                loss, _, top1, top5, s, step = self.tf_sess.run(fetches, feed_dict)
+                loss, _, [top1, top5], s, step = self.tf_sess.run(fetches, feed_dict)
                 top1_acc += top1
                 top5_acc += top5
                 n += 1
@@ -153,16 +153,14 @@ class TFClassifier(object):
                     speed = ((step - last_step)  * self.hp.batch_size) / elapsed
                     last_step = step
                     last_log_tick  = self.tick()
-                    self.logger.info('(%.3f)Epoch[%d] Batch[%d]\tloss: %.3f\tspeed: %.3f samples/sec', 
-                                      self.tick(), self.epoch, step, loss, speed)
+                    self.logger.info('(%.3f)Epoch[%d] Batch[%d]\tloss: %.3f\tspeed: %.3f samples/sec\ttrain_acc = %.2f', 
+                                      self.tick(), self.epoch, step, loss, speed, top1)
             except tf.errors.OutOfRangeError:
                 break
         self.saver.save(self.tf_sess, self.chkpt_prfx, self.epoch + 1)
-        self.logger.info('Epoch Training Time = %.3f, n = %d', self.tick() - epoch_start_time, n)
-        top1_acc = (top1_acc * 100.0) / n
-        top5_acc = (top5_acc * 100.0) / n
-        self.logger.info('Epoch[%d] Top-1 Train Acc = %.2f%%', self.epoch, top1_acc)
-        self.logger.info('Epoch[%d] Top-5 Train Acc = %.2f%%', self.epoch, top5_acc)
+        self.logger.info('Epoch Training Time = %.3f', self.tick() - epoch_start_time)
+        self.logger.info('Epoch[%d] Top-1 Train Acc = %.2f%%', self.epoch, top1_acc/n)
+        self.logger.info('Epoch[%d] Top-5 Train Acc = %.2f%%', self.epoch, top5_acc/n)
 
     def _eval_loop(self):
         """ """
@@ -181,9 +179,9 @@ class TFClassifier(object):
             except tf.errors.OutOfRangeError:
                 break
 
-        top1_acc = (top1_acc * 100.0) / n
-        top5_acc = (top5_acc * 100.0) / n
-        self.logger.info('Validation Time = %.3f, n = ', self.tick() - epoch_start_time, n)
+        top1_acc = top1_acc / n
+        top5_acc = top5_acc / n
+        self.logger.info('Validation Time = %.3f', self.tick() - epoch_start_time)
         return top1_acc, top5_acc
 
     def _log_accuracy(self, tag, top1_acc, top5_acc, step):

@@ -31,6 +31,7 @@ class MobileNet(TFNet):
         net_out = self.conv_dw(net_out, 1024, (3,3), stride=(2,2), act_fn='relu6', add_bn=True, name='Conv12')
         net_out = self.conv_dw(net_out, 1024, (3,3), stride=(1,1), act_fn='relu6', add_bn=True, name='Conv13')
         net_out = self.global_pool(net_out, 'avg', name="global_pool")
+        net_out = self.dropout(net_out, 0.5)
         net_out = self.flatten(net_out)
         net_out = self.Softmax(net_out, self.num_classes)
         return net_out
