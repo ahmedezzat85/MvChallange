@@ -309,12 +309,17 @@ class TFClassifier(object):
               This is suitable for testing a model before training it. 
         """
         utils.create_dir(deploy_dir)
-        with tf.Graph().as_default():
+        acc = 0
+        n   = 0
+        with tf.Graph().as_default() as g:
             in_shape = [1, 3, img_size, img_size] if self.data_format == 'NCHW' else [1, img_size, img_size, 3]
             input_image = tf.placeholder(self.dtype, in_shape, name='input')
             _, predictions = self._forward_prop(input_image, num_classes, training=False)
             out = tf.identity(predictions, 'output')
 
+            # Load the Evaluation Dataset
+            self._load_dataset(1, training=False)
+            loader = tf.train.Saver()
             self.create_tf_session()
             self.tb_writer  = tf.summary.FileWriter(deploy_dir, graph=self.tf_sess.graph)
             if chkpt_id >= 0:
@@ -323,11 +328,20 @@ class TFClassifier(object):
                     chkpt = chkpt_state.model_checkpoint_path
                 else:
                     chkpt = self.chkpt_prfx + '-' + str(chkpt_id)
-                loader = tf.train.Saver()
                 loader.restore(self.tf_sess, chkpt)
-            self.tf_sess.run(predictions, {input_image: np.random.rand(*in_shape)})
+    
+            self.tf_sess.run(self.dataset.eval_init_op)
+            while True:
+                try:
+                    image, label = self.tf_sess.run([self.dataset.images, self.dataset.labels])
+                    pred = self.tf_sess.run(out, {input_image: image})[0]
+                    if np.argmax(pred) == np.argmax(label): acc += 1
+                    n+= 1
+                except tf.errors.OutOfRangeError:
+                    break
 
-            saver = tf.train.Saver(tf.global_variables())
+            print ('acc = ', acc * 100 / n)
+            saver = tf.train.Saver()
             saver.save(self.tf_sess, os.path.join(deploy_dir, 'network'))
             tf.train.write_graph(self.tf_sess.graph_def, deploy_dir, self.model_name+'.pb', False)
             tf.train.write_graph(self.tf_sess.graph_def, deploy_dir, self.model_name+'.pbtxt')

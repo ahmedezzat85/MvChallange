@@ -163,7 +163,7 @@ class TFDatasetWriter(object):
 class TFDatasetReader(object):
     """ 
     """
-    def __init__(self, image_size=224, shuffle_buff_sz=5000):
+    def __init__(self, image_size=224, shuffle_buff_sz=1500):
 
         self.name        = 'IntelMovidius-200'
         self.shape       = (image_size, image_size, 3)

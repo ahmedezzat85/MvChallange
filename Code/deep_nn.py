@@ -41,6 +41,7 @@ class DeepNN(object):
 
     def deploy(self):
         """ """
+        self.module.dataset = self.dataset
         self.module.deploy(self.bin_dir, self.flags.input_size, self.dataset.num_classes, self.flags.checkpoint)
 
 def main():
