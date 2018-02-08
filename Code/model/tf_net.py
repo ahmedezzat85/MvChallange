@@ -152,12 +152,10 @@ class TFNet(object):
         """
         """
         if fc == False:
-            net_out = self.convolution(data, num_classes, (1,1), pad='valid', act_fn='', 
-                                        name='Conv_Softmax')
+            net_out = self.convolution(data, num_classes, (1,1), pad='valid', act_fn='', name='Conv_Softmax')
             net_out = self.flatten(net_out)
         else:
             net_out = self.fully_connected(data, num_classes, name="FC_softmax")
-        if self.dtype != tf.float32:
-            net_out = tf.cast(net_out, tf.float32)
-        predictions = tf.nn.softmax(net_out, name='Output')
+        if self.dtype != tf.float32: net_out = tf.cast(net_out, tf.float32)
+        predictions = tf.nn.softmax(net_out, name='output')
         return net_out, predictions

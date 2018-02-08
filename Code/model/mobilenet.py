@@ -11,6 +11,7 @@ class MobileNet(TFNet):
         super(MobileNet, self).__init__(dtype, data_format, train=is_train)
         self.dw_alpa = 0.75
         self.net_out = data
+        self.strip_dropout = (not is_train) if isinstance(is_train, bool) else False
         self.num_classes = num_classes
 
     def __call__(self, alpha=1.0):
@@ -31,9 +32,10 @@ class MobileNet(TFNet):
         net_out = self.conv_dw(net_out, 1024, (3,3), stride=(2,2), act_fn='relu6', add_bn=True, name='Conv12')
         net_out = self.conv_dw(net_out, 1024, (3,3), stride=(1,1), act_fn='relu6', add_bn=True, name='Conv13')
         net_out = self.global_pool(net_out, 'avg', name="global_pool")
-        net_out = self.dropout(net_out, 0.5)
+        if self.strip_dropout is False:
+            net_out = self.dropout(net_out, 0.5)
         net_out = self.flatten(net_out)
-        net_out = self.Softmax(net_out, self.num_classes)
+        net_out = self.Softmax(net_out, self.num_classes, fc=True)
         return net_out
 
 def snpx_net_create(num_classes, input_data, data_format="NHWC", is_training=True):

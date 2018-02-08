@@ -270,67 +270,6 @@ class TFClassifier(object):
         self.logger.info("Training Finished at : " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         self.logger.info("Total Training Time  : " + str(datetime.now() - t_start))
 
-    def train2(self, dataset, hp, num_epoch, begin_epoch, log_freq_sec=1):
-        """ """
-        self.hp         = hp
-        self.dataset    = dataset
-        self.log_freq   = log_freq_sec
-
-        t_start = datetime.now()
-        self.logger = utils.create_logger(self.model_name, os.path.join(self.log_dir, 'Train.log'))
-        self.logger.info("Training Started at  : " + t_start.strftime("%Y-%m-%d %H:%M:%S"))
-        h,w,_ = self.dataset.shape
-        in_shape = [None] + [3, h, w] if self.data_format == 'NCHW' else [h, w, 3]
-
-        with tf.Graph().as_default():
-            # Load the dataset
-            self._load_dataset(self.hp.batch_size)
-
-            # Forward Propagation
-            self.training = tf.placeholder(tf.bool, name='Train_Flag')
-            self.image_ph = tf.placeholder(tf.float32, shape=in_shape)
-            self.label_ph = tf.placeholder(tf.int64, shape=[None, self.dataset.num_classes])
-            logits, probs = self._forward_prop(self.dataset.images, self.dataset.num_classes, self.training)
-        
-            self._create_train_op(logits, self.label_ph)
-
-            # Create a TF Session
-            self.create_tf_session()
-
-            # Create Tensorboard stuff
-            self.summary_op = tf.summary.merge(self.summary_list)
-            self.tb_writer  = tf.summary.FileWriter(self.log_dir, graph=self.tf_sess.graph)
-            self._dump_hyperparameters(begin_epoch)
-
-            if begin_epoch > 0:
-                # Load the saved model from a checkpoint
-                chkpt = self.chkpt_prfx + '-' + str(begin_epoch)
-                self.logger.info("Loading Checkpoint " + chkpt)
-                num_epoch   += begin_epoch
-                self.saver = tf.train.Saver(max_to_keep=50)
-                self.saver.restore(self.tf_sess, chkpt)
-                self.tb_writer.reopen()
-            else:
-                self.saver = tf.train.Saver(max_to_keep=200)
-
-            # Training Loop
-            for self.epoch in range(begin_epoch, num_epoch):
-                # Training
-                self._train_loop()
-
-                # Validation
-                top1_acc, top5_acc = self._eval_loop()
-                self._log_accuracy('Validation', top1_acc, top5_acc, self.epoch)
-                self.logger.info('Epoch[%d] Top-1 Val Acc = %.2f%%', self.epoch, top1_acc)
-                self.logger.info('Epoch[%d] Top-5 Val Acc = %.2f%%', self.epoch, top5_acc)
-
-            # Close and terminate
-            self.tb_writer.close()
-            self.tf_sess.close()
-
-        self.logger.info("Training Finished at : " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        self.logger.info("Total Training Time  : " + str(datetime.now() - t_start))
-
     def evaluate(self, chkpt_id=None):
         """ """
         self.logger = utils.create_logger(self.model_name, os.path.join(self.log_dir, 'Eval.log'))
@@ -384,7 +323,7 @@ class TFClassifier(object):
             _, predictions = self._forward_prop(input_image, num_classes, training=False)
 
             # Load the Evaluation Dataset
-            loader = tf.train.Saver()
+            saver = tf.train.Saver(tf.global_variables())
             self.create_tf_session()
             self.tb_writer  = tf.summary.FileWriter(deploy_dir, graph=self.tf_sess.graph)
             if chkpt_id >= 0:
@@ -393,12 +332,11 @@ class TFClassifier(object):
                     chkpt = chkpt_state.model_checkpoint_path
                 else:
                     chkpt = self.chkpt_prfx + '-' + str(chkpt_id)
-                loader.restore(self.tf_sess, chkpt)
+                saver.restore(self.tf_sess, chkpt)
     
             image = np.random.rand(*in_shape)
             self.tf_sess.run(predictions, {input_image: image})
 
-            saver = tf.train.Saver(tf.global_variables())
             saver.save(self.tf_sess, os.path.join(deploy_dir, 'network'))
             tf.train.write_graph(self.tf_sess.graph_def, deploy_dir, self.model_name+'.pb', False)
             tf.train.write_graph(self.tf_sess.graph_def, deploy_dir, self.model_name+'.pbtxt')

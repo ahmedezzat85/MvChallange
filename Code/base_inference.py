@@ -129,7 +129,7 @@ class InferenceScore(object):
             print('(',self.count,')', (self.top1_acc * 100.0) / self.count, 
                                       (self.top5_acc * 100.0) / self.count)
 
-    def finish(self, mult=100, n_classes=200, log_loss_max=7.0, time_limit=1000.0):
+    def finish(self, mult=100, n_classes=200, log_loss_max=15.0, time_limit=1000.0):
         """ """
         probs = np.array(self.probs)
         log_loss = np.mean(-np.log(probs))
