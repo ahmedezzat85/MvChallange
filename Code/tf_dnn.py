@@ -26,19 +26,21 @@ class TFClassifier(object):
         print ('Tensorflow Version:   ', tf.__version__)
 
         # Parameter initializations
-        self.logger       = None
-        self.model_name   = model_name
-        self.base_tick    = time()
-        self.dtype        = tf.float32
-        self.training     = None
-        self.tf_sess      = None
-        self.accuracy_op  = None
         self.loss         = None
+        self.dtype        = tf.float32
+        self.logger       = None
+        self.log_dir      = logs_dir
+        self.tf_sess      = None
         self.train_op     = None
+        self.image_ph     = None
+        self.label_ph     = None
+        self.training     = None
+        self.base_tick    = time()
+        self.model_name   = model_name
         self.summary_op   = None
+        self.accuracy_op  = None
         self.data_format  = data_format
         self.global_step  = None
-        self.log_dir      = logs_dir
         self.summary_list = []
 
         # Get the neural network model function
@@ -80,12 +82,12 @@ class TFClassifier(object):
         logits, predictions = self.model_fn(num_classes, batch, self.data_format, is_training=training)
         return logits, predictions
 
-    def loss_fn(self, logits):
-        cross_entropy = tf.losses.softmax_cross_entropy(self.dataset.labels, logits)
+    def loss_fn(self, logits, labels):
+        cross_entropy = tf.losses.softmax_cross_entropy(labels, logits)
         self.summary_list.append(tf.summary.scalar("Loss", cross_entropy))
         return cross_entropy
 
-    def _create_train_op(self, logits, predictions):
+    def _create_train_op(self, logits, labels):
         """ """
         self.global_step = tf.train.get_or_create_global_step()
         # Get the optimizer
@@ -105,7 +107,7 @@ class TFClassifier(object):
             opt = tf.train.RMSPropOptimizer(lr, momentum=0.9, epsilon=1)
  
         # Compute the loss and the train_op
-        self.loss = self.loss_fn(logits)
+        self.loss = self.loss_fn(logits, labels)
         if self.hp.wd > 0:
             l2_loss = self.hp.wd * tf.add_n([tf.nn.l2_loss(v) for v in tf.trainable_variables() 
                                                 if 'batch_normalization' not in v.name])
@@ -114,7 +116,7 @@ class TFClassifier(object):
         update_ops  = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
             self.train_op = opt.minimize(self.loss, self.global_step)
-        self._create_accuracy_op(predictions, self.dataset.labels)
+        self._create_accuracy_op(logits, labels)
 
     def _create_accuracy_op(self, predictions, labels):
         """ """
@@ -139,12 +141,18 @@ class TFClassifier(object):
         n = 0
         while True:
             try:
-                feed_dict = {self.training: True}
+                if self.image_ph is None:
+                    feed_dict = {self.training: True}
+                else:
+                    images, labels = self.tf_sess.run([self.dataset.images, self.dataset.labels])
+                    feed_dict = {self.training: True, self.image_ph: images, self.label_ph: labels}
                 fetches   = [self.loss, self.train_op, self.accuracy_op, self.summary_op, self.global_step]
                 loss, _, [top1, top5], s, step = self.tf_sess.run(fetches, feed_dict)
                 top1_acc += top1
                 top5_acc += top5
                 n += 1
+                if n % 500 == 0:
+                    self.saver.save(self.tf_sess, self.chkpt_prfx, step)
 
                 self.tb_writer.add_summary(s, step)
                 self.tb_writer.flush()
@@ -262,6 +270,67 @@ class TFClassifier(object):
         self.logger.info("Training Finished at : " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         self.logger.info("Total Training Time  : " + str(datetime.now() - t_start))
 
+    def train2(self, dataset, hp, num_epoch, begin_epoch, log_freq_sec=1):
+        """ """
+        self.hp         = hp
+        self.dataset    = dataset
+        self.log_freq   = log_freq_sec
+
+        t_start = datetime.now()
+        self.logger = utils.create_logger(self.model_name, os.path.join(self.log_dir, 'Train.log'))
+        self.logger.info("Training Started at  : " + t_start.strftime("%Y-%m-%d %H:%M:%S"))
+        h,w,_ = self.dataset.shape
+        in_shape = [None] + [3, h, w] if self.data_format == 'NCHW' else [h, w, 3]
+
+        with tf.Graph().as_default():
+            # Load the dataset
+            self._load_dataset(self.hp.batch_size)
+
+            # Forward Propagation
+            self.training = tf.placeholder(tf.bool, name='Train_Flag')
+            self.image_ph = tf.placeholder(tf.float32, shape=in_shape)
+            self.label_ph = tf.placeholder(tf.int64, shape=[None, self.dataset.num_classes])
+            logits, probs = self._forward_prop(self.dataset.images, self.dataset.num_classes, self.training)
+        
+            self._create_train_op(logits, self.label_ph)
+
+            # Create a TF Session
+            self.create_tf_session()
+
+            # Create Tensorboard stuff
+            self.summary_op = tf.summary.merge(self.summary_list)
+            self.tb_writer  = tf.summary.FileWriter(self.log_dir, graph=self.tf_sess.graph)
+            self._dump_hyperparameters(begin_epoch)
+
+            if begin_epoch > 0:
+                # Load the saved model from a checkpoint
+                chkpt = self.chkpt_prfx + '-' + str(begin_epoch)
+                self.logger.info("Loading Checkpoint " + chkpt)
+                num_epoch   += begin_epoch
+                self.saver = tf.train.Saver(max_to_keep=50)
+                self.saver.restore(self.tf_sess, chkpt)
+                self.tb_writer.reopen()
+            else:
+                self.saver = tf.train.Saver(max_to_keep=200)
+
+            # Training Loop
+            for self.epoch in range(begin_epoch, num_epoch):
+                # Training
+                self._train_loop()
+
+                # Validation
+                top1_acc, top5_acc = self._eval_loop()
+                self._log_accuracy('Validation', top1_acc, top5_acc, self.epoch)
+                self.logger.info('Epoch[%d] Top-1 Val Acc = %.2f%%', self.epoch, top1_acc)
+                self.logger.info('Epoch[%d] Top-5 Val Acc = %.2f%%', self.epoch, top5_acc)
+
+            # Close and terminate
+            self.tb_writer.close()
+            self.tf_sess.close()
+
+        self.logger.info("Training Finished at : " + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        self.logger.info("Total Training Time  : " + str(datetime.now() - t_start))
+
     def evaluate(self, chkpt_id=None):
         """ """
         self.logger = utils.create_logger(self.model_name, os.path.join(self.log_dir, 'Eval.log'))
@@ -309,16 +378,12 @@ class TFClassifier(object):
               This is suitable for testing a model before training it. 
         """
         utils.create_dir(deploy_dir)
-        acc = 0
-        n   = 0
         with tf.Graph().as_default() as g:
             in_shape = [1, 3, img_size, img_size] if self.data_format == 'NCHW' else [1, img_size, img_size, 3]
             input_image = tf.placeholder(self.dtype, in_shape, name='input')
             _, predictions = self._forward_prop(input_image, num_classes, training=False)
-            out = tf.identity(predictions, 'output')
 
             # Load the Evaluation Dataset
-            self._load_dataset(1, training=False)
             loader = tf.train.Saver()
             self.create_tf_session()
             self.tb_writer  = tf.summary.FileWriter(deploy_dir, graph=self.tf_sess.graph)
@@ -330,18 +395,10 @@ class TFClassifier(object):
                     chkpt = self.chkpt_prfx + '-' + str(chkpt_id)
                 loader.restore(self.tf_sess, chkpt)
     
-            self.tf_sess.run(self.dataset.eval_init_op)
-            while True:
-                try:
-                    image, label = self.tf_sess.run([self.dataset.images, self.dataset.labels])
-                    pred = self.tf_sess.run(out, {input_image: image})[0]
-                    if np.argmax(pred) == np.argmax(label): acc += 1
-                    n+= 1
-                except tf.errors.OutOfRangeError:
-                    break
+            image = np.random.rand(*in_shape)
+            self.tf_sess.run(predictions, {input_image: image})
 
-            print ('acc = ', acc * 100 / n)
-            saver = tf.train.Saver()
+            saver = tf.train.Saver(tf.global_variables())
             saver.save(self.tf_sess, os.path.join(deploy_dir, 'network'))
             tf.train.write_graph(self.tf_sess.graph_def, deploy_dir, self.model_name+'.pb', False)
             tf.train.write_graph(self.tf_sess.graph_def, deploy_dir, self.model_name+'.pbtxt')
