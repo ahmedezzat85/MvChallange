@@ -34,8 +34,7 @@ class MobileNet(TFNet):
         net_out = self.global_pool(net_out, 'avg', name="global_pool")
         if self.strip_dropout is False:
             net_out = self.dropout(net_out, 0.5)
-        net_out = self.flatten(net_out)
-        net_out = self.Softmax(net_out, self.num_classes, fc=True)
+        net_out = self.Softmax(net_out, self.num_classes, fc=False)
         return net_out
 
 def snpx_net_create(num_classes, input_data, data_format="NHWC", is_training=True):

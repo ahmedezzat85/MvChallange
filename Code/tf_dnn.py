@@ -32,8 +32,6 @@ class TFClassifier(object):
         self.log_dir      = logs_dir
         self.tf_sess      = None
         self.train_op     = None
-        self.image_ph     = None
-        self.label_ph     = None
         self.training     = None
         self.base_tick    = time()
         self.model_name   = model_name
@@ -141,18 +139,14 @@ class TFClassifier(object):
         n = 0
         while True:
             try:
-                if self.image_ph is None:
-                    feed_dict = {self.training: True}
-                else:
-                    images, labels = self.tf_sess.run([self.dataset.images, self.dataset.labels])
-                    feed_dict = {self.training: True, self.image_ph: images, self.label_ph: labels}
+                feed_dict = {self.training: True}
                 fetches   = [self.loss, self.train_op, self.accuracy_op, self.summary_op, self.global_step]
                 loss, _, [top1, top5], s, step = self.tf_sess.run(fetches, feed_dict)
                 top1_acc += top1
                 top5_acc += top5
                 n += 1
-                if n % 500 == 0:
-                    self.saver.save(self.tf_sess, self.chkpt_prfx, step)
+                # if n % 500 == 0:
+                #     self.saver.save(self.tf_sess, self.chkpt_prfx, step)
 
                 self.tb_writer.add_summary(s, step)
                 self.tb_writer.flush()
@@ -231,7 +225,7 @@ class TFClassifier(object):
             self.training = tf.placeholder(tf.bool, name='Train_Flag')
             logits, probs = self._forward_prop(self.dataset.images, self.dataset.num_classes, self.training)
         
-            self._create_train_op(logits, probs)
+            self._create_train_op(logits, self.dataset.labels)
 
             # Create a TF Session
             self.create_tf_session()
