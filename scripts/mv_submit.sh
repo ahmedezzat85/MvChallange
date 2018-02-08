@@ -27,7 +27,7 @@ cp ../Code/image_preprocessing.py .
 # Generate NCS Compiled Model
 echo 'Generating Graph For Model for "'$MODEL  $IN_SZ'"'
 cp $MODEL_DIR/network.* .
-mvNCCompile network.meta -s 12 -in input -on output -o $COMPILED_GRAPH -is $IN_SZ $IN_SZ
+mvNCCompile network.meta -w network -s 12 -in input -on output -o $COMPILED_GRAPH -is $IN_SZ $IN_SZ
 
 # Run inference
 python3 mvncs_inference.py -d $DATASET_KEY -s
