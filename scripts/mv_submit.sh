@@ -1,6 +1,5 @@
 #!/bin/sh
 
-CWD=$PWD
 MODEL=$1
 IN_SZ=$2
 DATASET_KEY=$3
