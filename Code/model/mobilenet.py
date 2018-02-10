@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import tensorflow as tf
 from . tf_net import TFNet
+from . mobilenet_v1 import mobilenet_v1
 
 class MobileNet(TFNet):
     """
@@ -39,6 +40,9 @@ class MobileNet(TFNet):
 
 def snpx_net_create(num_classes, input_data, data_format="NHWC", is_training=True):
     """ """
-    net = MobileNet(input_data, data_format, num_classes, is_training)
-    net_out = net()
-    return net_out
+    logits, end_points = mobilenet_v1(input_data, num_classes=num_classes, dropout_keep_prob=0.8, is_training=is_training,
+                    global_pool=True)
+    probs = tf.identity(end_points['Predictions'], name='output')
+    # net = MobileNet(input_data, data_format, num_classes, is_training)
+    # net_out = net()
+    return logits, probs

@@ -58,6 +58,7 @@ train_patch
 log
 logs
 bin
+dataset/CIFAR-10/*
 dataset/training/*
 bin/*
 log/*
