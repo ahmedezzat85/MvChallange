@@ -24,6 +24,7 @@ class TFClassifier(object):
 
         # Display Tensorflow Version
         print ('Tensorflow Version:   ', tf.__version__)
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
         # Parameter initializations
         self.loss         = None
@@ -287,7 +288,7 @@ class TFClassifier(object):
             tf_model.restore(self.tf_sess, chkpt)
 
             # Perform Model Evaluation
-            self._create_eval_op(predictions, self.dataset.labels)
+            self._create_accuracy_op(predictions, self.dataset.labels)
             top1_acc, top5_acc = self._eval_loop()
             self.logger.info('Top-1 Accuracy = %.2f%%', top1_acc)
             self.logger.info('Top-5 Accuracy = %.2f%%', top5_acc)
