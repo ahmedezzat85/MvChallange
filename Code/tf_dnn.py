@@ -145,8 +145,6 @@ class TFClassifier(object):
                 top1_acc += top1
                 top5_acc += top5
                 n += 1
-                # if n % 500 == 0:
-                #     self.saver.save(self.tf_sess, self.chkpt_prfx, step)
 
                 self.tb_writer.add_summary(s, step)
                 self.tb_writer.flush()

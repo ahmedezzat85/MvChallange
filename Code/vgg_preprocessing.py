@@ -34,9 +34,9 @@ from __future__ import print_function
 
 import tensorflow as tf
 
-_R_MEAN = 123.68 / 255
-_G_MEAN = 116.78 / 255
-_B_MEAN = 103.94 / 255
+_R_MEAN = 128 / 255
+_G_MEAN = 118 / 255
+_B_MEAN = 108 / 255
 
 _RESIZE_SIDE_MIN = 256
 _RESIZE_SIDE_MAX = 512
