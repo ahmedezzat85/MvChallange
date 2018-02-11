@@ -43,7 +43,7 @@ class TFClassifier(object):
 
         # Get the neural network model function
         net_module    = import_module('model.' + model_name)
-        self.model_fn = net_module.snpx_net_create
+        self.model_fn = net_module.net_create
 
         self.chkpt_dir = os.path.join(self.log_dir, 'chkpt')
         utils.create_dir(self.chkpt_dir)
