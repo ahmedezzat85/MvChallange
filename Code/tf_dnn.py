@@ -20,7 +20,7 @@ _CSV_TEST_SET_FILE = os.path.join(mv_dataset.DATASET_DIR, 'eval_set.csv')
 class TFClassifier(object):
     """ Abtraction of TensorFlow functionality.
     """
-    def __init__(self, model_name, data_format='NHWC', logs_dir=None):
+    def __init__(self, dataset, model_name, data_format='NHWC', logs_dir=None):
 
         # Display Tensorflow Version
         print ('Tensorflow Version:   ', tf.__version__)
@@ -32,6 +32,7 @@ class TFClassifier(object):
         self.logger       = None
         self.log_dir      = logs_dir
         self.tf_sess      = None
+        self.dataset      = dataset
         self.train_op     = None
         self.training     = None
         self.base_tick    = time()
@@ -43,8 +44,8 @@ class TFClassifier(object):
         self.summary_list = []
 
         # Get the neural network model function
-        net_module    = import_module('model.' + model_name)
-        self.model_fn = net_module.net_create
+        net_module = import_module('model.' + model_name)
+        self.model = net_module.TFModel(self.dtype, data_format, dataset.num_classes)
 
         self.chkpt_dir = os.path.join(self.log_dir, 'chkpt')
         utils.create_dir(self.chkpt_dir)
@@ -76,11 +77,6 @@ class TFClassifier(object):
         with tf.device('/cpu:0'):
             self.dataset.read(batch_size, training, self.data_format, training, self.dtype)
     
-    def _forward_prop(self, batch, num_classes, training=True):
-        """ """
-        logits, predictions = self.model_fn(num_classes, batch, self.data_format, is_training=training)
-        return logits, predictions
-
     def loss_fn(self, logits, labels):
         cross_entropy = tf.losses.softmax_cross_entropy(labels, logits)
         self.summary_list.append(tf.summary.scalar("Loss", cross_entropy))
@@ -206,11 +202,10 @@ class TFClassifier(object):
         self.tf_sess = tf.Session(config=config)
         self.tf_sess.run(tf.group(tf.global_variables_initializer(), tf.local_variables_initializer()))
 
-    def train(self, dataset, hp, num_epoch, begin_epoch, log_freq_sec=1):
+    def train(self, hp, num_epoch, begin_epoch, log_freq_sec=1):
         """ """
-        self.hp         = hp
-        self.dataset    = dataset
-        self.log_freq   = log_freq_sec
+        self.hp       = hp
+        self.log_freq = log_freq_sec
 
         t_start = datetime.now()
         self.logger = utils.create_logger(self.model_name, os.path.join(self.log_dir, 'Train.log'))
@@ -222,12 +217,13 @@ class TFClassifier(object):
 
             # Forward Propagation
             self.training = tf.placeholder(tf.bool, name='Train_Flag')
-            logits, probs = self._forward_prop(self.dataset.images, self.dataset.num_classes, self.training)
+            logits, probs = self.model.forward(self.dataset.images, self.training)
         
             self._create_train_op(logits, self.dataset.labels)
 
             # Create a TF Session
             self.create_tf_session()
+            self.model.weight_init(self.tf_sess)
 
             # Create Tensorboard stuff
             self.summary_op = tf.summary.merge(self.summary_list)

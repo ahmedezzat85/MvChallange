@@ -21,7 +21,7 @@ class DeepNN(object):
         self.logs_dir = os.path.join(_LOGS_ROOT_DIR, args.model_name, args.log_subdir)
         self.bin_dir  = os.path.join(_MODEL_BIN_DIR, args.model_name)
         self.dataset  = TFDatasetReader(image_size=args.input_size)
-        self.module   = TFClassifier(args.model_name, args.data_format, self.logs_dir)
+        self.module   = TFClassifier(self.dataset, args.model_name, args.data_format, self.logs_dir)
 
     def train(self):        
         # Pack the hyper-parameters
@@ -32,11 +32,10 @@ class DeepNN(object):
         hp = utils.DictToAttrs(hp_dict)
         
         # Train the model
-        self.module.train(self.dataset, hp, self.flags.num_epoch, self.flags.begin_epoch)
+        self.module.train(hp, self.flags.num_epoch, self.flags.begin_epoch)
 
     def evaluate(self):
         """ """
-        self.module.dataset = self.dataset
         self.module.evaluate(self.flags.checkpoint)
 
     def deploy(self):

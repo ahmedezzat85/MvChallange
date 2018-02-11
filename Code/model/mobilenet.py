@@ -1,25 +1,43 @@
 from __future__ import absolute_import
 
+import os
 import tensorflow as tf
 from . tf_net import TFNet
 from . mobilenet_v1 import mobilenet_v1, mobilenet_v1_arg_scope
 import tensorflow.contrib.slim as slim
 
-def clean_model(input_data, num_classes, is_training):
-    arg_scope = mobilenet_v1_arg_scope(is_training)
-    with slim.arg_scope(arg_scope):
-        logits, end_points = mobilenet_v1(input_data, num_classes=num_classes, dropout_keep_prob=0.8, 
-                                is_training=is_training, global_pool=True)
-    probs = tf.identity(end_points['Predictions'], name='output')
-    return logits, probs
+_CUR_DIR = os.path.dirname(__file__)
 
-def pretrained_model(input_data, num_classes, is_training, chkpt_file):
-    arg_scope = mobilenet_v1_arg_scope(is_training)
-    with slim.arg_scope(arg_scope):
-        logits, end_points = mobilenet_v1(input_data, num_classes=num_classes, dropout_keep_prob=0.8, 
-                                is_training=is_training, global_pool=True)
-    probs = tf.identity(end_points['Predictions'], name='output')
-    init_fn = slim.assign_from_checkpoint_fn(chkpt_file, slim.get_model_variables('MobilenetV1'))
+class TFModel(TFNet):
+    """
+    """
+    def __init__(self, dtype, data_format, num_classes):
+        super(TFModel, self).__init__(dtype, data_format)
+        self.num_classes = num_classes
+        self.chkpt = os.path.join(_CUR_DIR, 'mobilenet_v1','mobilenet_v1_1.0_224.ckpt')
+
+    def forward(self, data, is_training=True):
+        """ """
+        arg_scope = mobilenet_v1_arg_scope(is_training)
+        with slim.arg_scope(arg_scope):
+            logits, end_points = mobilenet_v1(data, num_classes=self.num_classes, dropout_keep_prob=0.8, 
+                                    is_training=is_training, global_pool=True)
+        probs = tf.identity(end_points['Predictions'], name='output')
+        return logits, probs
+
+    def weight_init(self, tf_sess):
+        if self.chkpt is not None:
+            var_list = []
+            for var in slim.get_model_variables('MobilenetV1'):
+                if not var.op.name.startswith('MobilenetV1/Logits'):
+                    var_list.append(var)
+                else:
+                    print ('EXCLUDE < ', var.op.name, ' >')
+
+            init_fn = slim.assign_from_checkpoint_fn(self.chkpt, var_list)
+            init_fn(tf_sess)
+
+
 
 # class MobileNet(TFNet):
 #     """
@@ -54,8 +72,3 @@ def pretrained_model(input_data, num_classes, is_training, chkpt_file):
 #             net_out = self.dropout(net_out, 0.5)
 #         net_out = self.Softmax(net_out, self.num_classes, fc=False)
 #         return net_out
-
-def net_create(num_classes, input_data, data_format="NHWC", is_training=True):
-    """ """
-    logits, probs = clean_model(input_data, num_classes, is_training)
-    return logits, probs
