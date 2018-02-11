@@ -406,22 +406,22 @@ def mobilenet_v1_arg_scope(is_training=True,
       'is_training': is_training,
       'center': True,
       'scale': True,
-      'decay': 0.9997,
+      'decay': 0.99,
       'epsilon': 0.001,
+      'fused': True
   }
 
   # Set weight_decay for weights in Conv and DepthSepConv layers.
-  weights_init = tf.truncated_normal_initializer(stddev=stddev)
-  regularizer = tf.contrib.layers.l2_regularizer(weight_decay)
-  if regularize_depthwise:
-    depthwise_regularizer = regularizer
-  else:
-    depthwise_regularizer = None
+  weights_init = tf.glorot_uniform_initializer()#tf.truncated_normal_initializer(stddev=stddev)
+  # regularizer = tf.contrib.layers.l2_regularizer(weight_decay)
+  # if regularize_depthwise:
+  #   depthwise_regularizer = regularizer
+  # else:
+  #   depthwise_regularizer = None
   with slim.arg_scope([slim.conv2d, slim.separable_conv2d],
                       weights_initializer=weights_init,
                       activation_fn=tf.nn.relu6, normalizer_fn=slim.batch_norm):
     with slim.arg_scope([slim.batch_norm], **batch_norm_params):
-      with slim.arg_scope([slim.conv2d], weights_regularizer=regularizer):
-        with slim.arg_scope([slim.separable_conv2d],
-                            weights_regularizer=depthwise_regularizer) as sc:
+      with slim.arg_scope([slim.conv2d], weights_regularizer=None):
+        with slim.arg_scope([slim.separable_conv2d], weights_regularizer=None) as sc:
           return sc
