@@ -104,8 +104,9 @@ class TFClassifier(object):
         # Compute the loss and the train_op
         self.loss = self.loss_fn(logits, labels)
         if self.hp.wd > 0:
-            l2_loss = self.hp.wd * tf.add_n([tf.nn.l2_loss(v) for v in tf.trainable_variables() 
-                                                if 'batch_normalization' not in v.name])
+            l2_loss = self.hp.wd * tf.add_n(
+                [tf.nn.l2_loss(v) for v in tf.trainable_variables() 
+                    if ('batch_normalization' not in v.name) and ('BatchNorm' not in v.name)])
             self.loss = self.loss + l2_loss
 
         update_ops  = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
@@ -309,7 +310,7 @@ class TFClassifier(object):
         with tf.Graph().as_default() as g:
             in_shape = [1, 3, img_size, img_size] if self.data_format == 'NCHW' else [1, img_size, img_size, 3]
             input_image = tf.placeholder(self.dtype, in_shape, name='input')
-            _, predictions = self._forward_prop(input_image, num_classes, training=False)
+            _, predictions = self.model.forward(input_image, is_training=False)
 
             # Load the Evaluation Dataset
             saver = tf.train.Saver(tf.global_variables())
