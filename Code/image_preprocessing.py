@@ -2,9 +2,9 @@ import cv2
 import numpy as np
 
 
-_R_MEAN = 123.68
-_G_MEAN = 116.78
-_B_MEAN = 103.94
+_R_MEAN = 128
+_G_MEAN = 118
+_B_MEAN = 108
 _RGB_MEAN = np.array([_R_MEAN, _G_MEAN, _B_MEAN]) / 255
 
 

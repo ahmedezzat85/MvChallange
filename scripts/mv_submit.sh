@@ -29,7 +29,7 @@ cp $MODEL_DIR/network.* .
 mvNCCompile network.meta -w network -s 12 -in input -on output -o $COMPILED_GRAPH -is $IN_SZ $IN_SZ
 
 # Run inference
-python3 mvncs_inference.py -d $DATASET_KEY -s
+python3 mvncs_inference.py -d $DATASET_KEY $4
 
 mkdir supporting
 sudo chmod 777 supporting -R

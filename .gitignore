@@ -55,6 +55,7 @@ submission
 submission_*
 corrupted_images
 train_patch
+dataset/provisional/*
 log
 logs
 bin
