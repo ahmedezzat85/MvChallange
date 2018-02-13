@@ -20,7 +20,7 @@ _CSV_TEST_SET_FILE = os.path.join(mv_dataset.DATASET_DIR, 'eval_set.csv')
 class TFClassifier(object):
     """ Abtraction of TensorFlow functionality.
     """
-    def __init__(self, dataset, model_name, data_format='NHWC', logs_dir=None):
+    def __init__(self, dataset, model_name, data_format='NHWC', logs_dir=None, **kwargs):
 
         # Display Tensorflow Version
         print ('Tensorflow Version:   ', tf.__version__)
@@ -45,7 +45,7 @@ class TFClassifier(object):
 
         # Get the neural network model function
         net_module = import_module('model.' + model_name)
-        self.model = net_module.TFModel(self.dtype, data_format, dataset.num_classes)
+        self.model = net_module.TFModel(self.dtype, data_format, dataset.num_classes, **kwargs)
 
         self.chkpt_dir = os.path.join(self.log_dir, 'chkpt')
         utils.create_dir(self.chkpt_dir)
@@ -224,7 +224,6 @@ class TFClassifier(object):
 
             # Create a TF Session
             self.create_tf_session()
-            self.model.weight_init(self.tf_sess)
 
             # Create Tensorboard stuff
             self.summary_op = tf.summary.merge(self.summary_list)
@@ -240,6 +239,7 @@ class TFClassifier(object):
                 self.saver.restore(self.tf_sess, chkpt)
                 self.tb_writer.reopen()
             else:
+                self.model.weight_init(self.tf_sess)
                 self.saver = tf.train.Saver(max_to_keep=200)
 
             # Training Loop

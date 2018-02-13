@@ -116,25 +116,25 @@ import tensorflow.contrib.slim as slim
 # DepthSepConv defines 3x3 depthwise convolution followed by 1x1 convolution.
 # stride is the stride of the convolution
 # depth is the number of channels or filters in a layer
-Conv = namedtuple('Conv', ['kernel', 'stride', 'depth'])
-DepthSepConv = namedtuple('DepthSepConv', ['kernel', 'stride', 'depth'])
+Conv = namedtuple('Conv', ['kernel', 'stride', 'depth', 'trainable'])
+DepthSepConv = namedtuple('DepthSepConv', ['kernel', 'stride', 'depth', 'trainable'])
 
 # _CONV_DEFS specifies the MobileNet body
 _CONV_DEFS = [
-    Conv(kernel=[3, 3], stride=2, depth=32),
-    DepthSepConv(kernel=[3, 3], stride=1, depth=64),
-    DepthSepConv(kernel=[3, 3], stride=2, depth=128),
-    DepthSepConv(kernel=[3, 3], stride=1, depth=128),
-    DepthSepConv(kernel=[3, 3], stride=2, depth=256),
-    DepthSepConv(kernel=[3, 3], stride=1, depth=256),
-    DepthSepConv(kernel=[3, 3], stride=2, depth=512),
-    DepthSepConv(kernel=[3, 3], stride=1, depth=512),
-    DepthSepConv(kernel=[3, 3], stride=1, depth=512),
-    DepthSepConv(kernel=[3, 3], stride=1, depth=512),
-    DepthSepConv(kernel=[3, 3], stride=1, depth=512),
-    DepthSepConv(kernel=[3, 3], stride=1, depth=512),
-    DepthSepConv(kernel=[3, 3], stride=2, depth=1024),
-    DepthSepConv(kernel=[3, 3], stride=1, depth=1024)
+    Conv(kernel=[3, 3], stride=2, depth=32, trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=64  , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=2, depth=128 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=128 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=2, depth=256 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=256 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=2, depth=512 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=512 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=512 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=512 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=512 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=512 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=2, depth=1024, trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=1024, trainable=True)
 ]
 
 
@@ -228,6 +228,8 @@ def mobilenet_v1_base(inputs,
           net = slim.conv2d(net, depth(conv_def.depth), conv_def.kernel,
                             stride=conv_def.stride,
                             normalizer_fn=slim.batch_norm,
+                            normalizer_params={'trainable': conv_def.trainable},
+                            trainable=conv_def.trainable,
                             scope=end_point)
           end_points[end_point] = net
           if end_point == final_endpoint:
@@ -243,6 +245,8 @@ def mobilenet_v1_base(inputs,
                                       stride=layer_stride,
                                       rate=layer_rate,
                                       normalizer_fn=slim.batch_norm,
+                                      normalizer_params={'trainable': conv_def.trainable},
+                                      trainable=conv_def.trainable,
                                       scope=end_point)
 
           end_points[end_point] = net
@@ -254,6 +258,8 @@ def mobilenet_v1_base(inputs,
           net = slim.conv2d(net, depth(conv_def.depth), [1, 1],
                             stride=1,
                             normalizer_fn=slim.batch_norm,
+                            normalizer_params={'trainable': conv_def.trainable},
+                            trainable=conv_def.trainable,
                             scope=end_point)
 
           end_points[end_point] = net

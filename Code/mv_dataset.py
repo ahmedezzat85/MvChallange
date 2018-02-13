@@ -6,6 +6,7 @@ from __future__ import absolute_import
 import os
 import argparse
 import threading
+from math import ceil
 from datetime import datetime
 
 import numpy as np 
@@ -18,13 +19,9 @@ from vgg_preprocessing import preprocess_image
 ##=======##=======##=======##
 # CONSTANTS
 ##=======##=======##=======##
-_DATASET_SIZE    = 80000
-_NUM_CLASSES     = 200
-_IMG_PER_CLASS   = _DATASET_SIZE // _NUM_CLASSES
-_TRAIN_SET_SIZE  = 75000
-_VAL_SET_SIZE    = 5000
-_TRAIN_PER_CLASS = _IMG_PER_CLASS * (_TRAIN_SET_SIZE / _DATASET_SIZE)
-_VAL_PER_CLASS   = _IMG_PER_CLASS * (_VAL_SET_SIZE / _DATASET_SIZE)
+_DATASET_SIZE       = 80000
+_NUM_CLASSES        = 200
+_MAX_IMG_PER_TF_REC = 16000
 
 DATASET_DIR = os.path.join(os.path.dirname(__file__), '..', 'dataset')
 
@@ -82,19 +79,25 @@ class TFRecFile(object):
 
     def close(self):
         self.writer.close()
+         
 
 class TFDatasetWriter(object):
     """
     """
-    def __init__(self, num_rec_files=5):
-        # TFRecord Size 
-        rec_size = _TRAIN_SET_SIZE // num_rec_files
-        if (rec_size * num_rec_files) != _TRAIN_SET_SIZE: 
-            raise ValueError('num_train_rec not suitable')
-        self.num_rec = num_rec_files
+    def __init__(self, splits=(('train', 64000), ('eval', 8000), ('test', 8000))):
+        self.data_splits = []
+        for name, size in splits:
+            split_dict = {}
+            split_dict['name']       = name
+            split_dict['size']       = size / _NUM_CLASSES 
+            split_dict['label_cnt']  = np.zeros([_NUM_CLASSES, 1])
+            split_dict['images']     = []
+            split_dict['num_tf_rec'] = ceil(size // _MAX_IMG_PER_TF_REC)
+            self.data_splits.append(utils.DictToAttrs(split_dict))
 
-    def _split_train_eval(self):
+    def _split_traininig_set(self):
         """ """
+        # Read the training set from csv
         index_file = os.path.join(DATASET_DIR, 'training_ground_truth.csv')
         data = pd.read_csv(index_file, sep=',')
         image_files = data['IMAGE_NAME']
@@ -102,60 +105,54 @@ class TFDatasetWriter(object):
 
         # Random Shuffle with repeatable pattern
         index = list(range(_DATASET_SIZE))
-        np.random.seed(12345)
+        np.random.seed(54321)
         np.random.shuffle(index)
 
         # Split training set into train/val
-        self.train_set  = []
-        self.eval_set   = []
-        eval_set_labels = []
-        eval_set_images = []  
-        counters  = np.zeros([_NUM_CLASSES, 1])
         for i in index:
-            label = labels[i] - 1 # Labels are from 1-200, convert to 0-199
+            label = labels[i]
             file  = image_files[i]
-            if counters[label] < _TRAIN_PER_CLASS:
-                self.train_set.append((file, label))
-                counters[label] += 1
-            else:
-                eval_set_labels.append(label + 1)
-                eval_set_images.append(file)
-                self.eval_set.append((file, label))
-
-        eval_set_dict = {'IMAGE_NAME' : np.array(eval_set_images), 
-                         'CLASS_INDEX': np.array(eval_set_labels)}
-        df = pd.DataFrame(eval_set_dict)
-        df.to_csv(os.path.join(DATASET_DIR, 'eval_set.csv'), index=False, 
-                    columns=['IMAGE_NAME', 'CLASS_INDEX'])
+            label_idx = label - 1
+            for split in self.data_splits:
+                if split.label_cnt[label_idx] < split.size:
+                    split.images.append((file, label))
+                    split.label_cnt[label_idx] += 1
+                    break
+        for data_split in self.data_splits:
+            # Save to CSV file
+            header = ['IMAGE_NAME', 'LABEL_INDEX']
+            df = pd.DataFrame(data_split.images, columns=header)
+            df.to_csv(os.path.join(DATASET_DIR, data_split.name + '_set.csv'), index=False)
 
     def write(self):
         def create_tf_record(rec_file, image_list):
             rec_file = TFRecFile(os.path.join(DATASET_DIR, rec_file))
-            for t in image_list:
-                image, label = t
-                rec_file.add_image(os.path.join(DATASET_DIR, 'training', image), label)
+            for (image, label) in image_list:
+                rec_file.add_image(os.path.join(DATASET_DIR, 'training', image), (label - 1))
             rec_file.close()
 
         start_time = datetime.now()
         t_start    = start_time
-        self._split_train_eval()
-        train_set = utils.list_split(self.train_set, self.num_rec)
+        self._split_traininig_set()
 
         coord = tf.train.Coordinator()
         threads = []
-        for rec_id in range(self.num_rec):
-            args = ('train_0' + str(rec_id+1) + '.tfrecords', train_set[rec_id])
-            th = threading.Thread(target=create_tf_record, args=args)
-            th.start()
-            threads.append(th)
-        args = ('eval.tfrecords', self.eval_set)
-        th = threading.Thread(target=create_tf_record, args=args)
-        th.start()
-        threads.append(th)
+        for split in self.data_splits:
+            if split.num_tf_rec > 1:
+                data_set = utils.list_split(split.images, split.num_tf_rec)
+                for rec_id in range(split.num_tf_rec):
+                    args = (split.name+'_0'+str(rec_id+1)+'.tfrecords', data_set[rec_id])
+                    th = threading.Thread(target=create_tf_record, args=args)
+                    th.start()
+                    threads.append(th)
+            else:
+                args = (split.name+'_01.tfrecords', split.images)
+                th = threading.Thread(target=create_tf_record, args=args)
+                th.start()
+                threads.append(th)
         coord.join(threads)
         print ('ELAPSED TIME:  ', datetime.now() - t_start)
             
-
 
 ##=======##=======##=======##=======##=======##=======##=======##
 # Dataset Reader Functions (Load dataset from TFRECORD files)
@@ -167,13 +164,13 @@ class TFDatasetReader(object):
 
         self.name        = 'IntelMovidius-200'
         self.shape       = (image_size, image_size, 3)
-        self.dataset_sz  = _TRAIN_SET_SIZE
+        self.dataset_sz  = 64000
         self.num_classes = 200
         self.scale_min   = image_size + 32
         self.scale_max   = self.scale_min
         train_file_name  = os.path.join(DATASET_DIR, 'train_{:02d}.tfrecords')
-        self.train_files = [train_file_name.format(i+1) for i in range(5)]
-        self.eval_file   = os.path.join(DATASET_DIR, 'eval.tfrecords')
+        self.train_files = [train_file_name.format(i+1) for i in range(4)]
+        self.eval_file   = os.path.join(DATASET_DIR, 'eval_01.tfrecords')
         self.shuffle_sz  = shuffle_buff_sz
 
     def _parse_eval_rec(self, tf_record, dtype):
@@ -244,12 +241,12 @@ def main():
 
     if args.writer is True:
         print ('Dataset Writer ...')
-        writer = TFDatasetWriter(args.num_files)
+        writer = TFDatasetWriter()
         writer.write()
     elif args.split is True:
         print ('Split Only')
         writer = TFDatasetWriter()
-        writer._split_train_eval()
+        writer._split_traininig_set()
     elif args.reader is True:
         print ('Reader Test ....')
         reader = TFDatasetReader(image_size=192, shuffle_buff_sz=2000)
