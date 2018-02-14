@@ -36,7 +36,7 @@ sudo chmod 777 supporting -R
 mv mvncs_inference.py supporting/
 mv base_inference.py supporting/
 mv image_preprocessing.py supporting/
-cp ../scripts/README supporting/
+cp ../scripts/README.md supporting/
 cp ../dataset/eval_set.csv supporting/
 
 cd $PWD
