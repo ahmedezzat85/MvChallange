@@ -17,6 +17,10 @@ _DATASETS = {
         'data_csv': 'eval_set.csv', 
         'data_dir': 'training'
     },
+    'test': {
+        'data_csv': 'test_set.csv', 
+        'data_dir': 'training'
+    },
     'prov': {
         'data_csv': 'provisional.csv', 
         'data_dir': 'provisional'
@@ -57,7 +61,7 @@ class BaseInference(object):
     def __call__(self):
         df = pd.read_csv(self.csv_data_file, sep=',')
         images = df['IMAGE_NAME']
-        if self.score_flag is True: labels = df['CLASS_INDEX']
+        if self.score_flag is True: labels = df['LABEL_INDEX']
         score = InferenceScore()
 
         for i, image in enumerate(images):

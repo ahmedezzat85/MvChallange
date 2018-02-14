@@ -30,12 +30,12 @@ class TensorflowInference(BaseInference):
         self._load_model(model)
 
     def _load_model(self, model):
-        net_module    = import_module('model.' + model)
-        self.model_fn = net_module.snpx_net_create
+        net_module = import_module('model.' + model)
+        self.model = net_module.TFModel(tf.float32, "NHWC", 200)
         self.tf_graph = tf.Graph()
         with self.tf_graph.as_default():
             self.input = tf.placeholder(tf.float32, [1, self.img_size, self.img_size, 3], name='input')
-            _, self.output = self.model_fn(200, self.input, 'NHWC', is_training=False)
+            _, self.output = self.model.forward(self.input, is_training=False)
 
             saver = tf.train.Saver()
             self.tf_sess = tf.Session()
@@ -56,8 +56,9 @@ class TensorflowInference(BaseInference):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('MvNCS Inference Script')
     parser.add_argument('-m', '--model', type=str)
+    parser.add_argument('-d', '--dataset', type=str)
     args = parser.parse_args()
 
-    infer = TensorflowInference(model=args.model)
+    infer = TensorflowInference(model=args.model, dataset_key=args.dataset)
     infer()
     infer.close()
