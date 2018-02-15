@@ -20,7 +20,7 @@ class TensorflowInference(BaseInference):
                  score_inference=True,
                  input_size=224,
                  preserve_aspect=True):
-        super(TensorflowInference, self).__init__(dataset_key, inference_file, score_inference, 
+        super(TensorflowInference, self).__init__(dataset_key, inference_file, not(dataset_key=='prov'), 
                                                     input_size, preserve_aspect)
 
         # Disable Tensorflow logs except for errors

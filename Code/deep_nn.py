@@ -20,9 +20,9 @@ class DeepNN(object):
         self.flags    = args
         self.logs_dir = os.path.join(_LOGS_ROOT_DIR, args.model_name, args.log_subdir)
         self.bin_dir  = os.path.join(_MODEL_BIN_DIR, args.model_name)
-        model_args    = {} if args.model_param is None else json.loads(str(args.model_param))
+        model_param   = args.model_param.strip().split(',') if args.model_param is not None else []
         self.dataset  = TFDatasetReader(image_size=args.input_size)
-        self.module   = TFClassifier(self.dataset, args.model_name, args.data_format, self.logs_dir, **model_args)
+        self.module   = TFClassifier(self.dataset, args.model_name, args.data_format, self.logs_dir, *model_param)
 
     def train(self):        
         # Pack the hyper-parameters
