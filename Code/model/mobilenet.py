@@ -46,7 +46,8 @@ _TRAIN_ALL = [
 class TFModel(object):
     """
     """
-    def __init__(self, dtype, data_format, num_classes, model='TRAIN', mult=1.0, input_size=224):
+    def __init__(self, dtype, data_format, num_classes, model='TRAIN', 
+                    mult=1.0, input_size=224, dropout=0.999):
         model = str(model)
         print ('Pretrained mobilenet <', model, '>')
         self.net_cfg = _FREEZE_ALL if model.upper() == 'FREEZE' else _TRAIN_ALL
@@ -54,7 +55,7 @@ class TFModel(object):
 
         self.mult         = float(mult)
         self.num_classes  = num_classes
-        self.dropout_prob = 0.999
+        self.dropout_prob = dropout
 
     def forward(self, data, is_training=True):
         """ """

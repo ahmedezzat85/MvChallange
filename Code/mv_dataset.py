@@ -92,7 +92,7 @@ class TFDatasetWriter(object):
             split_dict['size']       = size / _NUM_CLASSES 
             split_dict['label_cnt']  = np.zeros([_NUM_CLASSES, 1])
             split_dict['images']     = []
-            split_dict['num_tf_rec'] = ceil(size // _MAX_IMG_PER_TF_REC)
+            split_dict['num_tf_rec'] = ceil(size / _MAX_IMG_PER_TF_REC)
             self.data_splits.append(utils.DictToAttrs(split_dict))
 
     def _split_traininig_set(self):
