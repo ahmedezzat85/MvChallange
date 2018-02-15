@@ -84,7 +84,7 @@ class TFRecFile(object):
 class TFDatasetWriter(object):
     """
     """
-    def __init__(self, splits=(('train', 64000), ('eval', 8000), ('test', 8000))):
+    def __init__(self, splits=(('train', 72000), ('eval', 4000), ('test', 4000))):
         self.data_splits = []
         for name, size in splits:
             split_dict = {}
@@ -169,7 +169,7 @@ class TFDatasetReader(object):
         self.scale_min   = image_size + 32
         self.scale_max   = self.scale_min
         train_file_name  = os.path.join(DATASET_DIR, 'train_{:02d}.tfrecords')
-        self.train_files = [train_file_name.format(i+1) for i in range(4)]
+        self.train_files = [train_file_name.format(i+1) for i in range(5)]
         self.eval_file   = os.path.join(DATASET_DIR, 'eval_01.tfrecords')
         self.shuffle_sz  = shuffle_buff_sz
 
