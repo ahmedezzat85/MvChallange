@@ -43,37 +43,18 @@ _TRAIN_ALL = [
     DepthSepConv(kernel=[3, 3], stride=1, depth=1024, trainable=True)
 ]
 
-_NET_CFG = {
-    'FREEZE_ALL_1.0': {
-        'checkpoint': 'mobilenet_v1_1.0_224.ckpt',
-        'conv_def'  : _FREEZE_ALL},
-    'TRAIN_ALL_1.0': {
-        'checkpoint': 'mobilenet_v1_1.0_224.ckpt',
-        'conv_def'  : _TRAIN_ALL},
-    'FREEZE_ALL_0.75': {
-        'checkpoint': 'mobilenet_v1_0.75_224.ckpt',
-        'conv_def'  : _FREEZE_ALL},
-    'TRAIN_ALL_0.75': {
-        'checkpoint': 'mobilenet_v1_0.75_224.ckpt',
-        'conv_def'  : _TRAIN_ALL}
-    }
-
 class TFModel(object):
     """
     """
-    def __init__(self, dtype, data_format, num_classes, model='FREEZE_ALL_1.0'):
+    def __init__(self, dtype, data_format, num_classes, model='TRAIN', mult=1.0, input_size=224):
         model = str(model)
-        if model in _NET_CFG:
-            print ('Pretrained mobilenet <', model, '>')
-            self.net_cfg = _NET_CFG[model]['conv_def']
-            self.chkpt   = os.path.join(_MODEL_DIR, _NET_CFG[model]['checkpoint'])
-        else:
-            raise Warning('model name %s is not known, performing training from scratch', model)
-            self.chkpt   = None
-            self.net_cfg = _TRAIN_ALL
+        print ('Pretrained mobilenet <', model, '>')
+        self.net_cfg = _FREEZE_ALL if model.upper() == 'FREEZE' else _TRAIN_ALL
+        self.chkpt   = os.path.join(_MODEL_DIR, 'mobilenet_v1_'+str(mult)+'_'+str(input_size)+'.ckpt')
 
+        self.mult         = float(mult)
         self.num_classes  = num_classes
-        self.dropout_prob = 0.8
+        self.dropout_prob = 0.999
 
     def forward(self, data, is_training=True):
         """ """
@@ -81,7 +62,8 @@ class TFModel(object):
         with slim.arg_scope(arg_scope):
             logits, end_points = mobilenet_v1(data,
                                               num_classes=self.num_classes, 
-                                              dropout_keep_prob=0.8, 
+                                              dropout_keep_prob=self.dropout_prob,
+                                              depth_multiplier=self.mult, 
                                               is_training=is_training,
                                               conv_defs=self.net_cfg, 
                                               global_pool=True)

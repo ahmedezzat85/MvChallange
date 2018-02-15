@@ -20,10 +20,11 @@ _CSV_TEST_SET_FILE = os.path.join(mv_dataset.DATASET_DIR, 'eval_set.csv')
 class TFClassifier(object):
     """ Abtraction of TensorFlow functionality.
     """
-    def __init__(self, dataset, model_name, data_format='NHWC', logs_dir=None, **kwargs):
+    def __init__(self, dataset, model_name, data_format='NHWC', logs_dir=None, *model_params):
 
         # Display Tensorflow Version
         print ('Tensorflow Version:   ', tf.__version__)
+        tf.logging.set_verbosity(tf.logging.INFO)
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
         # Parameter initializations
@@ -45,7 +46,7 @@ class TFClassifier(object):
 
         # Get the neural network model function
         net_module = import_module('model.' + model_name)
-        self.model = net_module.TFModel(self.dtype, data_format, dataset.num_classes, **kwargs)
+        self.model = net_module.TFModel(self.dtype, data_format, dataset.num_classes, *model_params)
         
         self.chkpt_dir = os.path.join(self.log_dir, 'chkpt')
         utils.create_dir(self.chkpt_dir)

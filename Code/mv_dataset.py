@@ -189,7 +189,6 @@ class TFDatasetReader(object):
         image = tf.image.decode_jpeg(feature['image'], channels=3)
         image = tf.image.convert_image_dtype(image, dtype=tf.float32)
         image = preprocess_image(image, self.shape[0], self.shape[1], is_training=True)
-        image = tf.cast(image, dtype)
         label = tf.cast(feature['label'], tf.int64)
         return image, label
 
