@@ -55,7 +55,7 @@ class TFModel(object):
 
         self.mult         = float(mult)
         self.num_classes  = num_classes
-        self.dropout_prob = dropout
+        self.dropout_prob = float(dropout)
 
     def forward(self, data, is_training=True):
         """ """
