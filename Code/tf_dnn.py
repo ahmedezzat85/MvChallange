@@ -135,15 +135,11 @@ class TFClassifier(object):
         last_step        = self.tf_sess.run(self.global_step)
         top1_acc = 0
         top5_acc = 0
-        n = 0
         while True:
             try:
                 feed_dict = {self.training: True}
                 fetches   = [self.loss, self.train_op, self.accuracy_op, self.summary_op, self.global_step]
                 loss, _, [top1, top5], s, step = self.tf_sess.run(fetches, feed_dict)
-                top1_acc += top1
-                top5_acc += top5
-                n += 1
 
                 self.tb_writer.add_summary(s, step)
                 self.tb_writer.flush()
@@ -158,8 +154,8 @@ class TFClassifier(object):
                 break
         self.saver.save(self.tf_sess, self.chkpt_prfx, self.epoch + 1)
         self.logger.info('Epoch Training Time = %.3f', self.tick() - epoch_start_time)
-        self.logger.info('Epoch[%d] Top-1 Train Acc = %.2f%%', self.epoch, top1_acc/n)
-        self.logger.info('Epoch[%d] Top-5 Train Acc = %.2f%%', self.epoch, top5_acc/n)
+        self.logger.info('Epoch[%d] Top-1 Train Acc = %.2f%%', self.epoch, top1)
+        self.logger.info('Epoch[%d] Top-5 Train Acc = %.2f%%', self.epoch, top5)
 
     def _eval_loop(self):
         """ """
