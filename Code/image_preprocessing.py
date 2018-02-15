@@ -5,7 +5,7 @@ import numpy as np
 _R_MEAN = 128
 _G_MEAN = 118
 _B_MEAN = 108
-_RGB_MEAN = np.array([_R_MEAN, _G_MEAN, _B_MEAN]) / 255
+_RGB_MEAN = np.array([_R_MEAN, _G_MEAN, _B_MEAN])
 
 
 def _resize_keep_aspect(image, short_side=256, img_size=224):
@@ -30,13 +30,12 @@ def _resize_keep_aspect(image, short_side=256, img_size=224):
 def preprocess_image(image, short_side=256, img_size=224, preserve_aspect=True):
     """ """
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    image = image.astype(np.float32)
-    image = image / 255
-
     if preserve_aspect is True:
         image = _resize_keep_aspect(image)
     else:
         image = cv2.resize(image, (img_size, img_size))
-
+    image = image.astype(np.float32)
     image = image - _RGB_MEAN
+    image = image / 255
+
     return np.expand_dims(image, 0)

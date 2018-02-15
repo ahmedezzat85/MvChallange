@@ -17,6 +17,10 @@ _DATASETS = {
         'data_csv': 'eval_set.csv', 
         'data_dir': 'training'
     },
+    'train': {
+        'data_csv': 'train_set.csv',
+        'data_dir': 'training'
+    },
     'test': {
         'data_csv': 'test_set.csv', 
         'data_dir': 'training'

@@ -84,7 +84,7 @@ class TFRecFile(object):
 class TFDatasetWriter(object):
     """
     """
-    def __init__(self, splits=(('train', 72000), ('eval', 4000), ('test', 4000))):
+    def __init__(self, splits=(('train', 76000), ('eval', 4000))):
         self.data_splits = []
         for name, size in splits:
             split_dict = {}
@@ -263,20 +263,7 @@ def main():
                     break
             print (images[0])
             print ('Time for eval set: ', datetime.now() - t_start)
-            t_start = datetime.now()
-            
-    elif args.jpg is True:
-        images = [21158, 35728, 37021, 76090, 79764]
-        dec = JpegDecoder()
-        for i in images:
-            url = os.path.join(DATASET_DIR, 'corrupted_images', 'training_'+str(i)+'.jpg')
-            _, h, w, c = dec(url)
-            print ('URL: training_', i, '(', h, w, ')')
-        print ('---------------------------')
-        for i in images:
-            url = os.path.join(DATASET_DIR, 'train_patch', 'training_'+str(i)+'.jpg')
-            _, h, w, c = dec(url)
-            print ('URL: training_', i, '(', h, w, ')')
+            t_start = datetime.now()            
     else:
         parser.print_help()
 

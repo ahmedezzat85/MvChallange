@@ -1,6 +1,6 @@
 @echo off
 
-set PYTHON=python3
+set PYTHON=python
 set IMG_SZ=%3
 set FMT=NHWC
 set model=%1
