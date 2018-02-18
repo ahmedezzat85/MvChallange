@@ -10,7 +10,7 @@ from image_preprocessing import preprocess_image
 _DATA_ROOT_DIR = os.path.join(os.path.dirname(__file__), '..', 'dataset')
 _DATASETS = {
     'example': {
-        'data_csv': 'example_set.csv',
+        'data_csv': 'training_ground_truth.csv',
         'data_dir': 'training'
     },
     'eval': {
@@ -99,7 +99,7 @@ class BaseInference(object):
         for i in range(1,6): header += ['LABEL_INDEX #{:d}'.format(i), 'PROBABILITY #{:d}'.format(i)]
         header += ['INFERENCE_TIME']
         df = pd.DataFrame(self.summary, columns=header)
-        df.to_csv(self.out_csv_file, index=False)
+        df.to_csv(self.out_csv_file, index=False, header=False)
         
         # Dump Score
         if self.score_flag is True:

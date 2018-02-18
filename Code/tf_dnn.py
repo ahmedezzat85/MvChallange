@@ -60,7 +60,6 @@ class TFClassifier(object):
         hp = [
             ['**Input Size**', str(self.dataset.shape)],
             ['**Batch Size**', str(self.hp.batch_size)],
-            ['**Scales**', '{'+str(self.dataset.scale_min)+', '+str(self.dataset.scale_max)+'}'],
             ['**Optimizer**', self.hp.optimizer], 
             ['**Learning Rate**', str(self.hp.lr)], 
             ['**Weight Decay**', str(self.hp.wd)], 

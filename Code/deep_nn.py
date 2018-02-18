@@ -19,17 +19,19 @@ class DeepNN(object):
     def __init__(self, args):
         self.flags    = args
         self.logs_dir = os.path.join(_LOGS_ROOT_DIR, args.model_name, args.log_subdir)
-        self.bin_dir  = os.path.join(_MODEL_BIN_DIR, args.model_name)
+        self.bin_dir  = os.path.join(_MODEL_BIN_DIR, args.model_name, args.log_subdir)
         model_param   = args.model_param.strip().split(',') if args.model_param is not None else []
-        self.dataset  = TFDatasetReader(image_size=args.input_size)
-        self.module   = TFClassifier(self.dataset, args.model_name, args.data_format, self.logs_dir, *model_param)
+        print ('Model : ', args.model_name)
+        print ('---------------------------------------')
+        self.dataset = TFDatasetReader(image_size=args.input_size)
+        self.module  = TFClassifier(self.dataset, args.model_name, args.data_format, self.logs_dir, *model_param)
 
     def train(self):        
         # Pack the hyper-parameters
         hp_dict = {'batch_size': self.flags.batch_size, 'optimizer': self.flags.optimizer,
                     'lr': self.flags.lr, 'wd': self.flags.wd, 'lr_decay': self.flags.lr_decay,
                     'lr_decay_epochs': self.flags.lr_step, 'data_aug': self.flags.data_aug}
-        json.dumps(hp_dict, indent=True)
+        print(json.dumps(hp_dict, indent=True))
         hp = utils.DictToAttrs(hp_dict)
         
         # Train the model
