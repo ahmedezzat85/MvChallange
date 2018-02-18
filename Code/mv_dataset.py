@@ -120,7 +120,7 @@ class TFDatasetWriter(object):
                     break
         for data_split in self.data_splits:
             # Save to CSV file
-            header = ['IMAGE_NAME', 'LABEL_INDEX']
+            header = ['IMAGE_NAME', 'CLASS_INDEX']
             df = pd.DataFrame(data_split.images, columns=header)
             df.to_csv(os.path.join(DATASET_DIR, data_split.name + '_set.csv'), index=False)
 

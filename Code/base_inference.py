@@ -65,7 +65,7 @@ class BaseInference(object):
     def __call__(self):
         df = pd.read_csv(self.csv_data_file, sep=',')
         images = df['IMAGE_NAME']
-        if self.score_flag is True: labels = df['LABEL_INDEX']
+        if self.score_flag is True: labels = df['CLASS_INDEX']
         score = InferenceScore()
 
         for i, image in enumerate(images):
