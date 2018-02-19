@@ -1,9 +1,10 @@
 #!/bin/sh
 
 MODEL=$1
-IN_SZ=$2
-DATASET_KEY=$3
-MODEL_DIR=../bin/$MODEL
+MODEL_SUBDIR=$2
+IN_SZ=$3
+DATASET_KEY=$4
+MODEL_DIR=../bin/$MODEL/$MODEL_SUBDIR
 MODEL_FILE=$MODEL_DIR/network.meta
 OUT_DIR=$PWD/../submission
 COMPILED_GRAPH=compiled.graph
@@ -29,7 +30,7 @@ cp $MODEL_DIR/network.* .
 mvNCCompile network.meta -w network -s 12 -in input -on output -o $COMPILED_GRAPH -is $IN_SZ $IN_SZ
 
 # Run inference
-python3 mvncs_inference.py -d $DATASET_KEY $4
+python3 mvncs_inference.py -d $DATASET_KEY $5
 
 mkdir supporting
 sudo chmod 777 supporting -R
