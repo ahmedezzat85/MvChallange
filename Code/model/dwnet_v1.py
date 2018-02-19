@@ -16,19 +16,36 @@ from collections import namedtuple
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
-def Conv(data, filters, kernel, stride, index):
+def Conv(data, filters, kernel, stride, base_name):
   """ """
-  end_point = 'Conv_%d' % index
+  end_point = base_name
   return slim.conv2d(data, filters, kernel, stride=stride, normalizer_fn=slim.batch_norm, scope=end_point)
 
-def DepthWiseConv(data, filters, kernel, stride, index):
+def DepthWiseConv(data, filters, kernel, stride, base_name):
   """ """
-  base = 'Conv_%d' % index
-  end_point = base + '_depthwise'
+  end_point = base_name + '_depthwise'
   net = slim.separable_conv2d(data, None, kernel, depth_multiplier=1, stride=stride, rate=1,
                               normalizer_fn=slim.batch_norm, scope=end_point)
-  end_point = base + '_pointwise'
+  end_point = base_name + '_pointwise'
   net = slim.conv2d(net, filters, [1, 1], stride=1, normalizer_fn=slim.batch_norm, scope=end_point)
+  return net
+
+def ConvBlock(data, filters=[], stride=1, base_name=None):
+  """ """
+  # 1x1 Conv
+  end_point = base_name + '_b0_1x1'
+  b0 = slim.conv2d(data, filters[0], [1, 1], stride=stride, normalizer_fn=slim.batch_norm, scope=end_point)
+  
+  # 3x3 Conv
+  end_point = base_name + '_b1_3x3'
+  b1 = DepthWiseConv(data, filters[1] , [3,3], stride, end_point)
+
+  # 2x (3x3) Conv
+  end_point = base_name + '_b20_3x3'
+  b2 = DepthWiseConv(data, filters[2] , [3,3], stride, end_point)
+  end_point = base_name + '_b21_3x3'
+  b2 = DepthWiseConv(b2, filters[2] , [3,3], 1, end_point)
+  net = tf.concat([b0, b1, b2], axis=3, name=base_name+'_concat')
   return net
 
 def dwnet_v1_base(inputs, scope=None):
@@ -48,20 +65,18 @@ def dwnet_v1_base(inputs, scope=None):
   with tf.variable_scope(scope, 'DwNet', [inputs]):
     with slim.arg_scope([slim.conv2d, slim.separable_conv2d], padding='SAME'):
       net = inputs
-      net = Conv(net, 32, [3,3], 2, 0)
-      net = DepthWiseConv(net, 64  , [3,3], 1, 1)
-      net = DepthWiseConv(net, 128 , [3,3], 2, 2)
-      net = DepthWiseConv(net, 128 , [3,3], 1, 3)
-      net = DepthWiseConv(net, 256 , [3,3], 2, 4)
-      net = DepthWiseConv(net, 256 , [3,3], 1, 5)
-      net = DepthWiseConv(net, 512 , [3,3], 2, 6)
-      net = DepthWiseConv(net, 512 , [3,3], 1, 7)
-      net = DepthWiseConv(net, 512 , [3,3], 1, 8)
-      net = DepthWiseConv(net, 512 , [3,3], 1, 9)
-      net = DepthWiseConv(net, 512 , [3,3], 1, 10)
-      net = DepthWiseConv(net, 512 , [3,3], 1, 11)
-      net = DepthWiseConv(net, 1024, [3,3], 2, 12)
-      net = DepthWiseConv(net, 1024, [3,3], 1, 13)
+      net = Conv(net, 32, [3,3], 2, 'Conv_0')
+      net = DepthWiseConv(net, 64  , [3,3], 1, 'Conv_1')
+      net = DepthWiseConv(net, 128 , [3,3], 2, 'Conv_2')
+      net = ConvBlock(net, [64, 96, 32]   , 1, 'Block_1')
+      net = ConvBlock(net, [64, 128, 64]  , 2, 'Block_2')
+      net = ConvBlock(net, [96, 192, 96]  , 1, 'Block_3')
+      net = ConvBlock(net, [192, 224, 96], 2, 'Block_4')
+      net = ConvBlock(net, [192, 224, 96], 1, 'Block_5')
+      net = ConvBlock(net, [192, 224, 96], 1, 'Block_6')
+      net = ConvBlock(net, [192, 224, 96], 1, 'Block_7')
+      net = ConvBlock(net, [192, 224, 96], 1, 'Block_8')
+      net = ConvBlock(net, [192, 224, 96], 2, 'Block_9')
       return net
 
 def dwnet_v1(inputs,
