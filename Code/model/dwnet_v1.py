@@ -30,7 +30,7 @@ def DepthWiseConv(data, filters, kernel, stride, base_name):
   net = slim.conv2d(net, filters, [1, 1], stride=1, normalizer_fn=slim.batch_norm, scope=end_point)
   return net
 
-def ConvBlock(data, filters=[], stride=1, base_name=None):
+def ConvBlock(data, filters=[], stride=1, data_format='NHWC', base_name=None):
   """ """
   if filters[0] > 0:
     # 1x1 Conv
@@ -46,13 +46,14 @@ def ConvBlock(data, filters=[], stride=1, base_name=None):
   b2 = DepthWiseConv(data, filters[2] , [3,3], stride, end_point)
   end_point = base_name + '_b21_3x3'
   b2 = DepthWiseConv(b2, filters[2] , [3,3], 1, end_point)
+  concat_axis = 1 if data_format.startswith('NC') else 3
   if filters[0] > 0:
-    net = tf.concat([b0, b1, b2], axis=3, name=base_name+'_concat')
+    net = tf.concat([b0, b1, b2], concat_axis, name=base_name+'_concat')
   else:
-    net = tf.concat([b1, b2], axis=3, name=base_name+'_concat')
+    net = tf.concat([b1, b2], concat_axis, name=base_name+'_concat')
   return net
 
-def dwnet_v1_base(inputs, scope=None):
+def dwnet_v1_base(inputs, data_format, scope=None):
   """Mobilenet v1.
 
   Constructs a Mobilenet v1 network from inputs to the given final endpoint.
@@ -67,21 +68,21 @@ def dwnet_v1_base(inputs, scope=None):
   with tf.variable_scope(scope, 'DwNet', [inputs]):
     with slim.arg_scope([slim.conv2d, slim.separable_conv2d], padding='SAME'):
       net = inputs
-      net = Conv(net, 32, [3,3], 2, 'Conv_0')              # 224 -> 112
-      net = DepthWiseConv(net, 64  , [3,3], 1, 'Conv_1')   # 112 -> 112
-      net = DepthWiseConv(net, 128 , [3,3], 2, 'Conv_2')   # 112 ->  56
-      net = DepthWiseConv(net, 128 , [3,3], 1, 'Conv_3')   #  56 ->  56
-      net = DepthWiseConv(net, 256 , [3,3], 2, 'Conv_4')   #  56 ->  28
-      net = ConvBlock(net, [ 64,  96,  96], 1, 'Block_5')  #  28 ->  28
-      net = ConvBlock(net, [ 64, 128, 128], 1, 'Block_6')  #  28 ->  28
-      net = ConvBlock(net, [  0, 256, 256], 2, 'Block_7')  #  28 ->  14
-      net = ConvBlock(net, [192, 160, 160], 1, 'Block_8')  #  14 ->  14
-      net = ConvBlock(net, [192, 160, 160], 1, 'Block_9')  #  14 ->  14
-      net = ConvBlock(net, [ 96, 208, 208], 1, 'Block_10') #  14 ->  14
-      net = ConvBlock(net, [128, 320, 320], 1, 'Block_11') #  14 ->  14
-      net = ConvBlock(net, [  0, 384, 384], 2, 'Block_12') #  14 ->  7
-      net = ConvBlock(net, [384, 320, 320], 1, 'Block_13') #  7 ->   7
-      net = ConvBlock(net, [256, 384, 384], 1, 'Block_14') #  7 ->   7
+      net = Conv(net, 32, [3,3], 2, 'Conv_0')                           # 224 -> 112
+      net = DepthWiseConv(net, 64  , [3,3], 1, 'Conv_1')                # 112 -> 112
+      net = DepthWiseConv(net, 128 , [3,3], 2, 'Conv_2')                # 112 ->  56
+      net = DepthWiseConv(net, 128 , [3,3], 1, 'Conv_3')                #  56 ->  56
+      net = DepthWiseConv(net, 256 , [3,3], 2, 'Conv_4')                #  56 ->  28
+      net = ConvBlock(net, [ 64,  96,  96], 1, data_format, 'Block_5')  #  28 ->  28
+      net = ConvBlock(net, [ 64, 128, 128], 1, data_format, 'Block_6')  #  28 ->  28
+      net = ConvBlock(net, [  0, 256, 256], 2, data_format, 'Block_7')  #  28 ->  14
+      net = ConvBlock(net, [192, 160, 160], 1, data_format, 'Block_8')  #  14 ->  14
+      net = ConvBlock(net, [192, 160, 160], 1, data_format, 'Block_9')  #  14 ->  14
+      net = ConvBlock(net, [ 96, 208, 208], 1, data_format, 'Block_10') #  14 ->  14
+      net = ConvBlock(net, [128, 320, 320], 1, data_format, 'Block_11') #  14 ->  14
+      net = ConvBlock(net, [  0, 384, 384], 2, data_format, 'Block_12') #  14 ->  7
+      net = ConvBlock(net, [384, 320, 320], 1, data_format, 'Block_13') #  7 ->   7
+      net = ConvBlock(net, [256, 384, 384], 1, data_format, 'Block_14') #  7 ->   7
       return net
 
 def dwnet_v1(inputs, num_classes=200, dropout_keep_prob=0.999, is_training=True, scope='DwNet',
@@ -130,7 +131,7 @@ def dwnet_v1(inputs, num_classes=200, dropout_keep_prob=0.999, is_training=True,
     with slim.arg_scope([slim.batch_norm], **batch_norm_params) as sc:
       with tf.variable_scope(scope, 'DwNet', [inputs]) as scope:
         with slim.arg_scope([slim.batch_norm, slim.dropout], is_training=is_training):
-          net = dwnet_v1_base(inputs, scope=scope)
+          net = dwnet_v1_base(inputs, data_format, scope=scope)
           with tf.variable_scope('Logits'):
             # Global average pooling.
             if data_format.startswith('NC'):
