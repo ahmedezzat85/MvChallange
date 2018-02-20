@@ -49,11 +49,8 @@ class TFModel(object):
     def __init__(self, dtype, data_format, num_classes, model='TRAIN', 
                     mult=1.0, input_size=224, dropout=0.999):
         model = str(model)
-        print ('mult        : ', mult)
-        print ('config      : ', model)
-        print ('dropout     : ', dropout)
-        print ('input size  : ', input_size)
-        print ('num_classes : ', num_classes)
+        self.config  = {'Input Size': input_size, 'Model': model, 
+                        'Channel Mult': mult, 'Dropout': dropout}
         self.net_cfg = _FREEZE_ALL if model.upper() == 'FREEZE' else _TRAIN_ALL
         self.chkpt   = os.path.join(_MODEL_DIR, 'mobilenet_v1_'+str(mult)+'_'+str(input_size)+'.ckpt')
 

@@ -32,9 +32,10 @@ def DepthWiseConv(data, filters, kernel, stride, base_name):
 
 def ConvBlock(data, filters=[], stride=1, base_name=None):
   """ """
-  # 1x1 Conv
-  end_point = base_name + '_b0_1x1'
-  b0 = slim.conv2d(data, filters[0], [1, 1], stride=stride, normalizer_fn=slim.batch_norm, scope=end_point)
+  if filters[0] > 0:
+    # 1x1 Conv
+    end_point = base_name + '_b0_1x1'
+    b0 = slim.conv2d(data, filters[0], [1, 1], stride=stride, normalizer_fn=slim.batch_norm, scope=end_point)
   
   # 3x3 Conv
   end_point = base_name + '_b1_3x3'
@@ -45,7 +46,10 @@ def ConvBlock(data, filters=[], stride=1, base_name=None):
   b2 = DepthWiseConv(data, filters[2] , [3,3], stride, end_point)
   end_point = base_name + '_b21_3x3'
   b2 = DepthWiseConv(b2, filters[2] , [3,3], 1, end_point)
-  net = tf.concat([b0, b1, b2], axis=3, name=base_name+'_concat')
+  if filters[0] > 0:
+    net = tf.concat([b0, b1, b2], axis=3, name=base_name+'_concat')
+  else:
+    net = tf.concat([b1, b2], axis=3, name=base_name+'_concat')
   return net
 
 def dwnet_v1_base(inputs, scope=None):
@@ -60,33 +64,29 @@ def dwnet_v1_base(inputs, scope=None):
   Returns:
     tensor_out: output tensor corresponding to the final_endpoint.
   """
-  end_points = {}
-
   with tf.variable_scope(scope, 'DwNet', [inputs]):
     with slim.arg_scope([slim.conv2d, slim.separable_conv2d], padding='SAME'):
       net = inputs
-      net = Conv(net, 32, [3,3], 2, 'Conv_0')
-      net = DepthWiseConv(net, 64  , [3,3], 1, 'Conv_1')
-      net = DepthWiseConv(net, 128 , [3,3], 2, 'Conv_2')
-      net = ConvBlock(net, [64, 96, 32]   , 1, 'Block_1')
-      net = ConvBlock(net, [64, 128, 64]  , 2, 'Block_2')
-      net = ConvBlock(net, [96, 192, 96]  , 1, 'Block_3')
-      net = ConvBlock(net, [192, 224, 96], 2, 'Block_4')
-      net = ConvBlock(net, [192, 224, 96], 1, 'Block_5')
-      net = ConvBlock(net, [192, 224, 96], 1, 'Block_6')
-      net = ConvBlock(net, [192, 224, 96], 1, 'Block_7')
-      net = ConvBlock(net, [192, 224, 96], 1, 'Block_8')
-      net = ConvBlock(net, [192, 224, 96], 2, 'Block_9')
+      net = Conv(net, 32, [3,3], 2, 'Conv_0')              # 224 -> 112
+      net = DepthWiseConv(net, 64  , [3,3], 1, 'Conv_1')   # 112 -> 112
+      net = DepthWiseConv(net, 128 , [3,3], 2, 'Conv_2')   # 112 ->  56
+      net = DepthWiseConv(net, 128 , [3,3], 1, 'Conv_3')   #  56 ->  56
+      net = DepthWiseConv(net, 256 , [3,3], 2, 'Conv_4')   #  56 ->  28
+      net = ConvBlock(net, [ 64,  96,  96], 1, 'Block_5')  #  28 ->  28
+      net = ConvBlock(net, [ 64, 128, 128], 1, 'Block_6')  #  28 ->  28
+      net = ConvBlock(net, [  0, 256, 256], 2, 'Block_7')  #  28 ->  14
+      net = ConvBlock(net, [192, 160, 160], 1, 'Block_8')  #  14 ->  14
+      net = ConvBlock(net, [192, 160, 160], 1, 'Block_9')  #  14 ->  14
+      net = ConvBlock(net, [ 96, 208, 208], 1, 'Block_10') #  14 ->  14
+      net = ConvBlock(net, [128, 320, 320], 1, 'Block_11') #  14 ->  14
+      net = ConvBlock(net, [  0, 384, 384], 2, 'Block_12') #  14 ->  7
+      net = ConvBlock(net, [384, 320, 320], 1, 'Block_13') #  7 ->   7
+      net = ConvBlock(net, [256, 384, 384], 1, 'Block_14') #  7 ->   7
       return net
 
-def dwnet_v1(inputs,
-              num_classes=200,
-              dropout_keep_prob=0.999,
-              is_training=True,
-              prediction_fn=tf.contrib.layers.softmax,
-              spatial_squeeze=True,
-              reuse=None,
-              scope='DwNet'):
+def dwnet_v1(inputs, num_classes=200, dropout_keep_prob=0.999, is_training=True, scope='DwNet',
+  data_format='NHWC',
+  weights_init=tf.variance_scaling_initializer(scale=2.34, distribution='uniform')):  
   """Mobilenet v1 model for classification.
 
   Args:
@@ -96,24 +96,10 @@ def dwnet_v1(inputs,
       are returned instead.
     dropout_keep_prob: the percentage of activation values that are retained.
     is_training: whether is training or not.
-    min_depth: Minimum depth value (number of channels) for all convolution ops.
-      Enforced when depth_multiplier < 1, and not an active constraint when
-      depth_multiplier >= 1.
-    depth_multiplier: Float multiplier for the depth (number of channels)
-      for all convolution ops. The value must be greater than zero. Typical
-      usage will be to set this value in (0, 1) to reduce the number of
-      parameters or computation cost of the model.
-    conv_defs: A list of ConvDef namedtuples specifying the net architecture.
     prediction_fn: a function to get predictions out of logits.
-    spatial_squeeze: if True, logits is of shape is [B, C], if false logits is
-        of shape [B, 1, 1, C], where B is batch_size and C is number of classes.
     reuse: whether or not the network and its variables should be reused. To be
       able to reuse 'scope' must be given.
     scope: Optional variable_scope.
-    global_pool: Optional boolean flag to control the avgpooling before the
-      logits layer. If false or unset, pooling is done with a fixed window
-      that reduces default-sized inputs to 1x1, while larger inputs lead to
-      larger outputs. If true, any input size is pooled down to 1x1.
 
   Returns:
     net: a 2D Tensor with the logits (pre-softmax activations) if num_classes
@@ -127,45 +113,33 @@ def dwnet_v1(inputs,
   """
   input_shape = inputs.get_shape().as_list()
   if len(input_shape) != 4:
-    raise ValueError('Invalid input tensor rank, expected 4, was: %d' %
-                     len(input_shape))
+    raise ValueError('Invalid input tensor rank, expected 4, was: %d' % len(input_shape))
 
-  with tf.variable_scope(scope, 'DwNet', [inputs], reuse=reuse) as scope:
-    with slim.arg_scope([slim.batch_norm, slim.dropout], is_training=is_training):
-      net = dwnet_v1_base(inputs, scope=scope)
-      with tf.variable_scope('Logits'):
-        # Global average pooling.
-        net = tf.reduce_mean(net, [1, 2], keep_dims=True, name='global_pool')
-        # 1 x 1 x 1024
-        net = slim.dropout(net, keep_prob=dropout_keep_prob, scope='Dropout_1b')
-        logits = slim.conv2d(net, num_classes, [1, 1], activation_fn=None, normalizer_fn=None, scope='Conv2d_1c_1x1')
-        logits = tf.squeeze(logits, [1, 2], name='SpatialSqueeze')
-        predictions = prediction_fn(logits, scope='Predictions')
-  return logits, predictions
-
-def dwnet_v1_arg_scope(is_training=True):
-  """Defines the default MobilenetV1 arg scope.
-
-  Args:
-    is_training: Whether or not we're training the model.
-
-  Returns:
-    An `arg_scope` to use for the mobilenet v1 model.
-  """
   batch_norm_params = {
       'is_training': is_training,
       'center': True,
       'scale': True,
       'decay': 0.99,
       'epsilon': 0.001,
+      'data_format': data_format,
       'fused': True
   }
 
-  # Set weight_decay for weights in Conv and DepthSepConv layers.
-  weights_init = tf.glorot_uniform_initializer()#tf.truncated_normal_initializer(stddev=stddev)
   with slim.arg_scope([slim.conv2d, slim.separable_conv2d], weights_initializer=weights_init,
-                      activation_fn=tf.nn.relu6, normalizer_fn=slim.batch_norm):
-    with slim.arg_scope([slim.batch_norm], **batch_norm_params):
-      with slim.arg_scope([slim.conv2d], weights_regularizer=None):
-        with slim.arg_scope([slim.separable_conv2d], weights_regularizer=None) as sc:
-          return sc
+                      activation_fn=tf.nn.relu6, normalizer_fn=slim.batch_norm, data_format=data_format):
+    with slim.arg_scope([slim.batch_norm], **batch_norm_params) as sc:
+      with tf.variable_scope(scope, 'DwNet', [inputs]) as scope:
+        with slim.arg_scope([slim.batch_norm, slim.dropout], is_training=is_training):
+          net = dwnet_v1_base(inputs, scope=scope)
+          with tf.variable_scope('Logits'):
+            # Global average pooling.
+            if data_format.startswith('NC'):
+              net = tf.reduce_mean(net, [2, 3], keep_dims=True, name='global_pool')
+            else:
+              net = tf.reduce_mean(net, [1, 2], keep_dims=True, name='global_pool')
+            # 1 x 1 x 1024
+            net = slim.dropout(net, keep_prob=dropout_keep_prob, scope='Dropout_1b')
+            logits = slim.conv2d(net, num_classes, [1, 1], activation_fn=None, normalizer_fn=None, scope='Conv_softmax')
+            logits = slim.flatten(logits, scope='Flatten')
+            predictions = tf.nn.softmax(logits, name='Predictions')
+  return logits, predictions

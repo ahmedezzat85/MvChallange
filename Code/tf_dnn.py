@@ -57,8 +57,11 @@ class TFClassifier(object):
 
     def _dump_hyperparameters(self, begin_epoch):
         """ """
+        model_param =[]
+        for k, v in self.model.config.items():
+            item = ['**'+k+'**', str(v)]
+            model_param.append(item)
         hp = [
-            ['**Input Size**', str(self.dataset.shape)],
             ['**Batch Size**', str(self.hp.batch_size)],
             ['**Optimizer**', self.hp.optimizer], 
             ['**Learning Rate**', str(self.hp.lr)], 
@@ -67,7 +70,8 @@ class TFClassifier(object):
             ['**Decay Epochs**', str(self.hp.lr_decay_epochs)]]
         summ_op = tf.summary.merge(
                     [tf.summary.text(self.model_name + '/HyperParameters', tf.convert_to_tensor(hp)),
-                    tf.summary.text(self.model_name + '/Dataset', tf.convert_to_tensor(self.dataset.name))])
+                    tf.summary.text(self.model_name + '/Dataset', tf.convert_to_tensor(self.dataset.name)),
+                    tf.summary.text(self.model_name + '/Model', tf.convert_to_tensor(model_param))])
         s = self.tf_sess.run(summ_op)
         self.tb_writer.add_summary(s, begin_epoch)
         self.tb_writer.flush()
