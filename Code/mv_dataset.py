@@ -22,6 +22,8 @@ from vgg_preprocessing import preprocess_image
 _DATASET_SIZE       = 80000
 _NUM_CLASSES        = 200
 _MAX_IMG_PER_TF_REC = 16000
+_TRAIN_SET_SIZE     = 76000
+_EVAL_SET_SIZE      = _DATASET_SIZE - _TRAIN_SET_SIZE
 
 DATASET_DIR = os.path.join(os.path.dirname(__file__), '..', 'dataset')
 
@@ -84,7 +86,7 @@ class TFRecFile(object):
 class TFDatasetWriter(object):
     """
     """
-    def __init__(self, splits=(('train', 76000), ('eval', 4000))):
+    def __init__(self, splits=(('train', _TRAIN_SET_SIZE), ('eval', _EVAL_SET_SIZE))):
         self.data_splits = []
         for name, size in splits:
             split_dict = {}
@@ -164,8 +166,8 @@ class TFDatasetReader(object):
 
         self.name        = 'IntelMovidius-200'
         self.shape       = (image_size, image_size, 3)
-        self.dataset_sz  = 64000
-        self.num_classes = 200
+        self.dataset_sz  = _TRAIN_SET_SIZE
+        self.num_classes = _NUM_CLASSES
         self.scale_min   = image_size + 32
         self.scale_max   = self.scale_min
         train_file_name  = os.path.join(DATASET_DIR, 'train_{:02d}.tfrecords')
