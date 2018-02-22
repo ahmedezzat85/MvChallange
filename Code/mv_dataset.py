@@ -210,10 +210,11 @@ class TFDatasetReader(object):
             train_dataset = train_dataset.flat_map(tf.data.TFRecordDataset)
             train_dataset = train_dataset.shuffle(len(self.train_files))
             # train_dataset = tf.data.TFRecordDataset(self.train_files)
-            train_dataset = train_dataset.map(lambda tf_rec: self._parse_train_rec(tf_rec, dtype), 4)
             train_dataset = train_dataset.prefetch(batch_size)
             train_dataset = train_dataset.shuffle(self.shuffle_sz)
+            train_dataset = train_dataset.map(lambda tf_rec: self._parse_train_rec(tf_rec, dtype), 8)
             train_dataset = train_dataset.batch(batch_size)
+            train_dataset = train_dataset.prefetch(1)
             self.train_init_op = data_iter.make_initializer(train_dataset)
             
         self.images, labels = data_iter.get_next()

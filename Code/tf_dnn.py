@@ -13,7 +13,6 @@ import pandas as pd
 
 import utils
 import mv_dataset
-from vgg_preprocessing import preprocess_for_eval
 
 _CSV_TEST_SET_FILE = os.path.join(mv_dataset.DATASET_DIR, 'eval_set.csv')
 
