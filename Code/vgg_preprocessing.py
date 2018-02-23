@@ -39,7 +39,7 @@ _G_MEAN = 118 / 255
 _B_MEAN = 108 / 255
 
 _RESIZE_SIDE_MIN = 256
-_RESIZE_SIDE_MAX = 1024
+_RESIZE_SIDE_MAX = 640
 
 
 def _get_h_w(image):

@@ -418,7 +418,7 @@ def mobilenet_v1_arg_scope(is_training=True,
   }
 
   # Set weight_decay for weights in Conv and DepthSepConv layers.
-  weights_init = tf.glorot_uniform_initializer()#tf.truncated_normal_initializer(stddev=stddev)
+  weights_init = tf.glorot_normal_initializer()#tf.truncated_normal_initializer(stddev=stddev)
   # regularizer = tf.contrib.layers.l2_regularizer(weight_decay)
   # if regularize_depthwise:
   #   depthwise_regularizer = regularizer

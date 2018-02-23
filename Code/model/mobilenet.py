@@ -1,4 +1,6 @@
 from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
 import os
 import tensorflow as tf
@@ -46,17 +48,23 @@ _TRAIN_ALL = [
 class TFModel(object):
     """
     """
-    def __init__(self, dtype, data_format, num_classes, model='TRAIN', 
+    def __init__(self, dtype, data_format, num_classes, mode='TRAIN', 
                     mult=1.0, input_size=224, dropout=0.999):
-        model = str(model)
-        self.config  = {'Input Size': input_size, 'Model': model, 
-                        'Channel Mult': mult, 'Dropout': dropout}
-        self.net_cfg = _FREEZE_ALL if model.upper() == 'FREEZE' else _TRAIN_ALL
+        mode = (str(mode)).upper()
+        self.config  = {'Input Size': input_size, 'Mode': mode, 'Channel Mult': mult, 'Dropout': dropout}
         self.chkpt   = os.path.join(_MODEL_DIR, 'mobilenet_v1_'+str(mult)+'_'+str(input_size)+'.ckpt')
-
         self.mult         = float(mult)
         self.num_classes  = num_classes
         self.dropout_prob = float(dropout)
+
+        self.excludes = ['MobilenetV1/Logits']
+        if mode == 'TRAIN' : 
+            self.net_cfg = _TRAIN_ALL
+        elif mode == 'FREEZE': 
+            self.net_cfg = _FREEZE_ALL
+        elif mode == 'TUNE'  : 
+            self.net_cfg = _TRAIN_ALL
+            for i in range(6,14): self.excludes.append('MobilenetV1/Conv2d_%d' % i)
 
     def forward(self, data, is_training=True):
         """ """
@@ -77,10 +85,13 @@ class TFModel(object):
             # Exclude classifier part from the loaded weights
             var_list = []
             for var in slim.get_model_variables('MobilenetV1'):
-                if not var.op.name.startswith('MobilenetV1/Logits'):
-                    var_list.append(var)
-                else:
-                    print ('EXCLUDE <', var.op.name, '>')
+                exclude_var = False
+                for name in self.excludes:
+                    if var.op.name.startswith(name):
+                        exclude_var = True
+                        break
+                if exclude_var == False: var_list.append(var)
+                else: print ('EXCLUDE <', var.op.name, '>')
 
             # Initialize the model to the pretrained weights
             load_trained_weights = slim.assign_from_checkpoint_fn(self.chkpt, var_list)
