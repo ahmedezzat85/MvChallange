@@ -45,6 +45,27 @@ _TRAIN_ALL = [
     DepthSepConv(kernel=[3, 3], stride=1, depth=1024, trainable=True)
 ]
 
+_FINE_TUNE = [
+    Conv(kernel=[3, 3], stride=2, depth=32, trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=64  , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=2, depth=128 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=128 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=2, depth=256 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=256 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=2, depth=512 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=512 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=512 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=512 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=512 , trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=512 , trainable=True),
+    # Taken from YOLO
+    DepthSepConv(kernel=[3, 3], stride=2, depth=1024, trainable=True),
+    Conv(kernel=[1, 1], stride=1, depth=512, trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=1024, trainable=True),
+    Conv(kernel=[1, 1], stride=1, depth=512, trainable=True),
+    DepthSepConv(kernel=[3, 3], stride=1, depth=1024, trainable=True)
+]
+
 class TFModel(object):
     """
     """
@@ -63,8 +84,8 @@ class TFModel(object):
         elif mode == 'FREEZE': 
             self.net_cfg = _FREEZE_ALL
         elif mode == 'TUNE'  : 
-            self.net_cfg = _TRAIN_ALL
-            for i in range(6,14): self.excludes.append('MobilenetV1/Conv2d_%d' % i)
+            self.net_cfg = _FINE_TUNE
+            for i in range(12,len(_FINE_TUNE)): self.excludes.append('MobilenetV1/Conv2d_%d' % i)
 
     def forward(self, data, is_training=True):
         """ """

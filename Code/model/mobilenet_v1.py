@@ -139,7 +139,6 @@ _CONV_DEFS = [
 
 
 def mobilenet_v1_base(inputs,
-                      final_endpoint='Conv2d_13_pointwise',
                       min_depth=8,
                       depth_multiplier=1.0,
                       conv_defs=None,
@@ -151,12 +150,6 @@ def mobilenet_v1_base(inputs,
 
   Args:
     inputs: a tensor of shape [batch_size, height, width, channels].
-    final_endpoint: specifies the endpoint to construct the network up to. It
-      can be one of ['Conv2d_0', 'Conv2d_1_pointwise', 'Conv2d_2_pointwise',
-      'Conv2d_3_pointwise', 'Conv2d_4_pointwise', 'Conv2d_5'_pointwise,
-      'Conv2d_6_pointwise', 'Conv2d_7_pointwise', 'Conv2d_8_pointwise',
-      'Conv2d_9_pointwise', 'Conv2d_10_pointwise', 'Conv2d_11_pointwise',
-      'Conv2d_12_pointwise', 'Conv2d_13_pointwise'].
     min_depth: Minimum depth value (number of channels) for all convolution ops.
       Enforced when depth_multiplier < 1, and not an active constraint when
       depth_multiplier >= 1.
@@ -225,50 +218,29 @@ def mobilenet_v1_base(inputs,
 
         if isinstance(conv_def, Conv):
           end_point = end_point_base
-          net = slim.conv2d(net, depth(conv_def.depth), conv_def.kernel,
-                            stride=conv_def.stride,
-                            normalizer_fn=slim.batch_norm,
-                            normalizer_params={'trainable': conv_def.trainable},
-                            trainable=conv_def.trainable,
-                            scope=end_point)
+          net = slim.conv2d(net, depth(conv_def.depth), conv_def.kernel, stride=conv_def.stride,
+                            normalizer_fn=slim.batch_norm, normalizer_params={'trainable': conv_def.trainable},
+                            trainable=conv_def.trainable, scope=end_point)
           end_points[end_point] = net
-          if end_point == final_endpoint:
-            return net, end_points
 
         elif isinstance(conv_def, DepthSepConv):
           end_point = end_point_base + '_depthwise'
-
-          # By passing filters=None
-          # separable_conv2d produces only a depthwise convolution layer
-          net = slim.separable_conv2d(net, None, conv_def.kernel,
-                                      depth_multiplier=1,
-                                      stride=layer_stride,
-                                      rate=layer_rate,
-                                      normalizer_fn=slim.batch_norm,
+          net = slim.separable_conv2d(net, None, conv_def.kernel, depth_multiplier=1, stride=layer_stride,
+                                      rate=layer_rate, normalizer_fn=slim.batch_norm,
                                       normalizer_params={'trainable': conv_def.trainable},
-                                      trainable=conv_def.trainable,
-                                      scope=end_point)
-
+                                      trainable=conv_def.trainable, scope=end_point)
           end_points[end_point] = net
-          if end_point == final_endpoint:
-            return net, end_points
 
           end_point = end_point_base + '_pointwise'
-
-          net = slim.conv2d(net, depth(conv_def.depth), [1, 1],
-                            stride=1,
-                            normalizer_fn=slim.batch_norm,
+          net = slim.conv2d(net, depth(conv_def.depth), [1, 1], stride=1, normalizer_fn=slim.batch_norm,
                             normalizer_params={'trainable': conv_def.trainable},
-                            trainable=conv_def.trainable,
-                            scope=end_point)
-
+                            trainable=conv_def.trainable, scope=end_point)
           end_points[end_point] = net
-          if end_point == final_endpoint:
-            return net, end_points
         else:
           raise ValueError('Unknown convolution type %s for layer %d'
                            % (conv_def.ltype, i))
-  raise ValueError('Unknown final endpoint %s' % final_endpoint)
+      return net, end_points
+
 
 
 def mobilenet_v1(inputs,
@@ -418,12 +390,7 @@ def mobilenet_v1_arg_scope(is_training=True,
   }
 
   # Set weight_decay for weights in Conv and DepthSepConv layers.
-  weights_init = tf.glorot_normal_initializer()#tf.truncated_normal_initializer(stddev=stddev)
-  # regularizer = tf.contrib.layers.l2_regularizer(weight_decay)
-  # if regularize_depthwise:
-  #   depthwise_regularizer = regularizer
-  # else:
-  #   depthwise_regularizer = None
+  weights_init = tf.glorot_normal_initializer()
   with slim.arg_scope([slim.conv2d, slim.separable_conv2d],
                       weights_initializer=weights_init,
                       activation_fn=tf.nn.relu6, normalizer_fn=slim.batch_norm):
