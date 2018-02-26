@@ -59,7 +59,8 @@ class MvNCSInference(BaseInference):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('MvNCS Inference Script')
-    parser.add_argument('-d', '--dataset', type=str)
+    parser.add_argument('-d', '--dataset', type=str, help='Key identifying the dataset.'\
+    ' For example, \"prov\" for provisional dataset.')
     parser.add_argument('-s', '--score'  , action='store_true')
     args = parser.parse_args()
 
